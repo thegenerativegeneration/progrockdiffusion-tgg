@@ -88,7 +88,7 @@ import lpips
 from PIL import Image, ImageOps
 import requests
 from glob import glob
-import json
+import json5 as json
 from types import SimpleNamespace
 import torch
 from torch import nn
@@ -105,6 +105,7 @@ from resize_right import resize
 from guided_diffusion.script_util import create_model_and_diffusion, model_and_diffusion_defaults
 from datetime import datetime
 import numpy as np
+import numexpr
 import matplotlib.pyplot as plt
 import random
 from ipywidgets import Output
@@ -257,6 +258,17 @@ if torch.cuda.get_device_capability(device) == (8,0): ## A100 fix thanks to Emad
 #@title 2.2 Define necessary functions
 
 # https://gist.github.com/adefossez/0646dbe9ed4005480a2407c62aac8869
+
+def ease(num, t):
+    start = num[0]
+    end = num[1]
+    power = num[2]
+    return start + pow(t, power) * (end - start)
+
+def save_tensor_as_image(tensor, filename):
+    #tensor = tensor.cpu().numpy()
+    #cv2.imwrite(filename, tensor)
+    TF.to_pil_image(tensor.clamp(0, 1).squeeze(0)).save(filename,quality=99)
 
 def interp(t):
     return 3 * t**2 - 2 * t ** 3
@@ -752,7 +764,22 @@ def do_run():
                 grad = torch.zeros_like(x)
           if args.clamp_grad and x_is_NaN == False:
               magnitude = grad.square().mean().sqrt()
-              return grad * magnitude.clamp(max=args.clamp_max) / magnitude  #min=-0.02, min=-clamp_max,
+              timestep = (1000-t.item()) / 1000
+              clamp_max = 0
+
+              #save_tensor_as_image(grad, "grad.png")
+
+              if isinstance(args.clamp_max, list):
+                  clamp_max = ease(args.clamp_max, timestep)
+              elif isinstance(args.clamp_max, str):
+                  #print(args.clamp_max)
+                  clamp_max = float(numexpr.evaluate(args.clamp_max))
+                  #print(f"\nresult: {clamp_max}\n")
+              else:
+                  clamp_max = args.clamp_max
+
+              #print(f"{timestep}: {clamp_max}")
+              return grad * magnitude.clamp(max=clamp_max) / magnitude
           return grad
 
       if model_config['timestep_respacing'].startswith('ddim'):
@@ -835,6 +862,7 @@ def do_run():
                           else:
                             filename = f'{args.batch_name}({args.batchNum})_{i:04}-{j:03}.png'
                       image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
+                      
                       if j % args.display_rate == 0 or cur_t == -1:
                         image.save('progress.png')
                         display.clear_output(wait=True)
@@ -2190,7 +2218,7 @@ image_prompts = {
 #display_rate =  300 #@param{type: 'number'}
 #n_batches =  10 #@param{type: 'number'}
 
-batch_size = 1
+batch_size = 2
 
 def move_files(start_num, end_num, old_folder, new_folder):
     for i in range(start_num, end_num):

@@ -8,7 +8,8 @@ latent-diffusion/
 models/
 ResizeRight/
 taming-transformers/
-progress.png
+scripts/
+*.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

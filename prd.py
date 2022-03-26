@@ -742,7 +742,7 @@ def do_run():
 
         prev_sample_prompt = []
 
-        def do_weights(s, additional_prompts=[]):
+        def do_weights(s, additional_prompts=[], magnitude_multiplier=1):
             nonlocal model_stats, prev_sample_prompt
             sample_prompt = []
 
@@ -774,6 +774,7 @@ def do_run():
                     txt, weight = parse_prompt(prompt)
                     txt = clip_model.encode_text(
                         clip.tokenize(prompt).to(device)).float()
+                    weight *= magnitude_multiplier
 
                     if args.fuzzy_prompt:
                         for i in range(25):
@@ -792,6 +793,7 @@ def do_run():
                         skip_augs=skip_augs)
                     for prompt in image_prompt:
                         path, weight = parse_prompt(prompt)
+                        weight *= magnitude_multiplier
                         img = Image.open(fetch(path)).convert('RGB')
                         img = TF.resize(img, min(side_x, side_y, *img.size),
                                         T.InterpolationMode.LANCZOS)
@@ -1032,28 +1034,6 @@ def do_run():
                                         filename = f'{args.batch_name}({args.batchNum})_{i:04}-{j:03}.png'
                             image = TF.to_pil_image(
                                 image.add(1).div(2).clamp(0, 1))
-                            '''
-                            stat = ImageStat.Stat(image)
-
-                            # Inaccurate way of calculating brightness.  Adjust later.
-                            brightness = stat.mean[0] + stat.mean[
-                                1] + stat.mean[2] / 3
-
-                            print(f' brightness: {brightness}')
-                            overexposure_threshold = 215
-                            adjustment_magnitude = 4
-
-                            if (brightness > overexposure_threshold):
-                                overexposure = brightness - overexposure_threshold
-                                magnitude = -overexposure / (
-                                    (255 - overexposure_threshold) /
-                                    adjustment_magnitude)
-                                adjustment_prompt = [
-                                    f'overexposed:{magnitude}'
-                                ]
-                            else:
-                                adjustment_prompt = []
-                            '''
 
                             if j % args.display_rate == 0 or cur_t == -1:
                                 image.save('progress.png')
@@ -1096,7 +1076,8 @@ def do_run():
                     image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
                     stat = ImageStat.Stat(image)
 
-                    #print(stat.mean)
+                    print(f" stddev: {stat.stddev}")
+                    print(f"var:    {stat.var}")
                     # Inaccurate way of calculating brightness.  Adjust later.
                     brightness = (stat.mean[0] + stat.mean[1] +
                                   stat.mean[2]) / 3
@@ -1110,6 +1091,9 @@ def do_run():
                     underexposure_adjustment_magnitude = 10
                     underexposure_adjustment_max = 4
 
+                    #Track the total magnitude of the adjustments so it can be added to the main prompt
+                    total_adjustment_magnitude = 0
+
                     if (brightness > overexposure_threshold):
                         overexposure = brightness - overexposure_threshold
                         magnitude = overexposure / (
@@ -1118,8 +1102,11 @@ def do_run():
                         if (magnitude > overexposure_adjustment_max):
                             magnitude = overexposure_adjustment_max
                         adjustment_prompt = [
-                            f'overexposed:-{magnitude}', f'grainy:-{magnitude}'
+                            #f'overexposed:-{magnitude}',
+                            #f'grainy:-{magnitude}', f'low contrast:{magnitude}'
+                            f'overexposed, grainy, high contrast:-{magnitude}',
                         ]
+                        total_adjustment_magnitude += abs(magnitude)
                     elif (brightness < underexposure_threshold):
                         underexposure = underexposure_threshold - brightness
                         magnitude = underexposure / underexposure_threshold * underexposure_adjustment_magnitude
@@ -1128,6 +1115,7 @@ def do_run():
                         adjustment_prompt = [
                             f'bright color scheme, midday:{magnitude}'
                         ]
+                        total_adjustment_magnitude += abs(magnitude)
                     else:
                         adjustment_prompt = []
 
@@ -1135,7 +1123,8 @@ def do_run():
                         print(
                             f" {j}: {stat.mean}/{brightness}: {adjustment_prompt}"
                         )
-                do_weights(j + 1 + skip_steps, adjustment_prompt)
+                do_weights(j + 1 + skip_steps, adjustment_prompt,
+                           total_adjustment_magnitude + 1)
 
             with image_display:
                 if args.sharpen_preset != "Off" and animation_mode == "None":

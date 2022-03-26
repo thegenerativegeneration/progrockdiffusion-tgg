@@ -746,14 +746,18 @@ def do_run():
             nonlocal model_stats, prev_sample_prompt
             sample_prompt = []
 
+            print_sample_prompt = False
             if (str(s) not in frame_prompt.keys()):
                 sample_prompt = prev_sample_prompt.copy()
             else:
+                print_sample_prompt = True
                 sample_prompt = frame_prompt[str(s)].copy()
                 prev_sample_prompt = sample_prompt.copy()
 
             sample_prompt += additional_prompts
-            print(f' Sample Prompt for sample {s}: {sample_prompt}')
+
+            if (print_sample_prompt):
+                print(f' Sample Prompt for sample {s}: {sample_prompt}')
 
             model_stats = []
             for clip_model in clip_models:
@@ -1084,36 +1088,53 @@ def do_run():
                                 # if frame_num != args.max_frames-1:
                                 #   display.clear_output()
 
-                image = sample['pred_xstart'][0]
-                image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
-                stat = ImageStat.Stat(image)
+                dynamic_adjustment = True
+                adjustment_prompt = []
 
-                print(stat.mean)
-                # Inaccurate way of calculating brightness.  Adjust later.
-                brightness = (stat.mean[0] + stat.mean[1] + stat.mean[2]) / 3
+                if (dynamic_adjustment):
+                    image = sample['pred_xstart'][0]
+                    image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
+                    stat = ImageStat.Stat(image)
 
-                print(f' brightness: {brightness}')
-                overexposure_threshold = 140
-                overexposure_adjustment_magnitude = -10
+                    #print(stat.mean)
+                    # Inaccurate way of calculating brightness.  Adjust later.
+                    brightness = (stat.mean[0] + stat.mean[1] +
+                                  stat.mean[2]) / 3
 
-                underexposure_threshold = 80
-                underexposure_adjustment_magnitude = 10
+                    #print(f' brightness: {brightness}')
+                    overexposure_threshold = 165
+                    overexposure_adjustment_magnitude = 10
+                    overexposure_adjustment_max = 4
 
-                if (brightness > overexposure_threshold):
-                    overexposure = brightness - overexposure_threshold
-                    magnitude = overexposure / (
-                        (255 - overexposure_threshold) /
-                        overexposure_adjustment_magnitude)
-                    adjustment_prompt = [f'overexposed:{magnitude}']
-                elif (brightness < underexposure_threshold):
-                    underexposure = underexposure_threshold - brightness
-                    magnitude = underexposure / underexposure_threshold * underexposure_adjustment_magnitude
-                    adjustment_prompt = [
-                        f'bright, vibrant color scheme:{magnitude}'
-                    ]
-                else:
-                    adjustment_prompt = []
+                    underexposure_threshold = 80
+                    underexposure_adjustment_magnitude = 10
+                    underexposure_adjustment_max = 4
 
+                    if (brightness > overexposure_threshold):
+                        overexposure = brightness - overexposure_threshold
+                        magnitude = overexposure / (
+                            (255 - overexposure_threshold) /
+                            overexposure_adjustment_magnitude)
+                        if (magnitude > overexposure_adjustment_max):
+                            magnitude = overexposure_adjustment_max
+                        adjustment_prompt = [
+                            f'overexposed:-{magnitude}', f'grainy:-{magnitude}'
+                        ]
+                    elif (brightness < underexposure_threshold):
+                        underexposure = underexposure_threshold - brightness
+                        magnitude = underexposure / underexposure_threshold * underexposure_adjustment_magnitude
+                        if (magnitude > underexposure_adjustment_max):
+                            magnitude = underexposure_adjustment_max
+                        adjustment_prompt = [
+                            f'bright color scheme, midday:{magnitude}'
+                        ]
+                    else:
+                        adjustment_prompt = []
+
+                    if (len(adjustment_prompt) > 0):
+                        print(
+                            f" {j}: {stat.mean}/{brightness}: {adjustment_prompt}"
+                        )
                 do_weights(j + 1 + skip_steps, adjustment_prompt)
 
             with image_display:

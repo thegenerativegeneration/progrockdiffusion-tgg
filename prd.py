@@ -1093,11 +1093,11 @@ def do_run():
                 brightness = (stat.mean[0] + stat.mean[1] + stat.mean[2]) / 3
 
                 print(f' brightness: {brightness}')
-                overexposure_threshold = 170
+                overexposure_threshold = 140
                 overexposure_adjustment_magnitude = -10
 
                 underexposure_threshold = 80
-                underexposure_adjustment_magnitude = 4
+                underexposure_adjustment_magnitude = 10
 
                 if (brightness > overexposure_threshold):
                     overexposure = brightness - overexposure_threshold

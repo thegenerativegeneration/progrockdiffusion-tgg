@@ -134,6 +134,9 @@ from omegaconf import OmegaConf
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
+# Image display
+#from PyQt5.QtWidgets import QWidget
+
 # Command Line parse
 import argparse
 example_text = '''Usage examples:
@@ -1174,7 +1177,15 @@ def do_run():
                     if (brightness > 180):
                         print(" Brightness over threshold")
                         filter = ImageEnhance.Brightness(image)
-                        image = filter.enhance(0.5)
+                        image = filter.enhance(0.7)
+                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
+                            2).sub(1)
+                        break
+
+                    if (brightness < 90):
+                        print(" Brightness below threshold")
+                        filter = ImageEnhance.Brightness(image)
+                        image = filter.enhance(1.3)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
                             2).sub(1)
                         break

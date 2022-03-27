@@ -86,7 +86,7 @@ import math
 import timm
 from IPython import display
 import lpips
-from PIL import Image, ImageOps, ImageStat
+from PIL import Image, ImageOps, ImageStat, ImageEnhance
 import requests
 from glob import glob
 import json5 as json
@@ -743,6 +743,7 @@ def do_run():
         prev_sample_prompt = []
 
         def do_weights(s, additional_prompts=[], magnitude_multiplier=1):
+            #print(" do_weights")
             nonlocal model_stats, prev_sample_prompt
             sample_prompt = []
 
@@ -754,7 +755,7 @@ def do_run():
                 sample_prompt = frame_prompt[str(s)].copy()
                 prev_sample_prompt = sample_prompt.copy()
 
-            sample_prompt += additional_prompts
+            #sample_prompt += additional_prompts
 
             if (print_sample_prompt):
                 print(f' Sample Prompt for sample {s}: {sample_prompt}')
@@ -772,9 +773,25 @@ def do_run():
 
                 for prompt in sample_prompt:
                     txt, weight = parse_prompt(prompt)
+                    weight *= magnitude_multiplier
                     txt = clip_model.encode_text(
                         clip.tokenize(prompt).to(device)).float()
-                    weight *= magnitude_multiplier
+
+                    if args.fuzzy_prompt:
+                        for i in range(25):
+                            model_stat["target_embeds"].append(
+                                (txt + torch.randn(txt.shape).cuda() *
+                                 args.rand_mag).clamp(0, 1))
+                            model_stat["weights"].append(weight)
+                    else:
+                        model_stat["target_embeds"].append(txt)
+                        model_stat["weights"].append(weight)
+
+                for prompt in additional_prompts:
+                    # Same as above, except not affected by magnitude
+                    txt, weight = parse_prompt(prompt)
+                    txt = clip_model.encode_text(
+                        clip.tokenize(prompt).to(device)).float()
 
                     if args.fuzzy_prompt:
                         for i in range(25):
@@ -975,156 +992,192 @@ def do_run():
             if perlin_init:
                 init = regen_perlin()
 
-            if model_config['timestep_respacing'].startswith('ddim'):
-                samples = sample_fn(
-                    model,
-                    (batch_size, 3, args.side_y, args.side_x),
-                    clip_denoised=clip_denoised,
-                    model_kwargs={},
-                    cond_fn=cond_fn,
-                    progress=True,
-                    skip_timesteps=skip_steps,
-                    init_image=init,
-                    randomize_class=randomize_class,
-                    eta=eta,
-                )
-            else:
-                samples = sample_fn(
-                    model,
-                    (batch_size, 3, args.side_y, args.side_x),
-                    clip_denoised=clip_denoised,
-                    model_kwargs={},
-                    cond_fn=cond_fn,
-                    progress=True,
-                    skip_timesteps=skip_steps,
-                    init_image=init,
-                    randomize_class=randomize_class,
-                )
+            def do_sample_fn(_init_image, _skip):
+                print(" do_sample_fn")
+                if model_config['timestep_respacing'].startswith('ddim'):
+                    samples = sample_fn(
+                        model,
+                        (batch_size, 3, args.side_y, args.side_x),
+                        clip_denoised=clip_denoised,
+                        model_kwargs={},
+                        cond_fn=cond_fn,
+                        progress=True,
+                        skip_timesteps=_skip,
+                        init_image=_init_image,
+                        randomize_class=randomize_class,
+                        eta=eta,
+                    )
+                else:
+                    samples = sample_fn(
+                        model,
+                        (batch_size, 3, args.side_y, args.side_x),
+                        clip_denoised=clip_denoised,
+                        model_kwargs={},
+                        cond_fn=cond_fn,
+                        progress=True,
+                        skip_timesteps=_skip,
+                        init_image=_init_image,
+                        randomize_class=randomize_class,
+                    )
+
+                return samples
 
             # with run_display:
             # display.clear_output(wait=True)
             imgToSharpen = None
             adjustment_prompt = []
-            for j, sample in enumerate(samples):
-                cur_t -= 1
-                intermediateStep = False
-                if args.steps_per_checkpoint is not None:
-                    if j % steps_per_checkpoint == 0 and j > 0:
+            while cur_t >= 0:
+                samples = do_sample_fn(init, skip_steps + (steps - cur_t - 1))
+                for j, sample in enumerate(samples):
+                    cur_t -= 1
+                    intermediateStep = False
+                    if args.steps_per_checkpoint is not None:
+                        if j % steps_per_checkpoint == 0 and j > 0:
+                            intermediateStep = True
+                    elif j in args.intermediate_saves:
                         intermediateStep = True
-                elif j in args.intermediate_saves:
-                    intermediateStep = True
-                with image_display:
-                    if j % args.display_rate == 0 or cur_t == -1 or intermediateStep == True:
-                        for k, image in enumerate(sample['pred_xstart']):
-                            # tqdm.write(f'Batch {i}, step {j}, output {k}:')
-                            current_time = datetime.now().strftime(
-                                '%y%m%d-%H%M%S_%f')
-                            percent = math.ceil(j / total_steps * 100)
-                            if args.n_batches > 0:
-                                #if intermediates are saved to the subfolder, don't append a step or percentage to the name
-                                if cur_t == -1 and args.intermediates_in_subfolder is True:
-                                    save_num = f'{frame_num:04}' if animation_mode != "None" else i
-                                    filename = f'{args.batch_name}({args.batchNum})_{save_num}.png'
-                                else:
-                                    #If we're working with percentages, append it
-                                    if args.steps_per_checkpoint is not None:
-                                        filename = f'{args.batch_name}({args.batchNum})_{i:04}-{percent:02}%.png'
-                                    # Or else, iIf we're working with specific steps, append those
+                    with image_display:
+                        if j % args.display_rate == 0 or cur_t == -1 or intermediateStep == True:
+                            for k, image in enumerate(sample['pred_xstart']):
+                                # tqdm.write(f'Batch {i}, step {j}, output {k}:')
+                                current_time = datetime.now().strftime(
+                                    '%y%m%d-%H%M%S_%f')
+                                percent = math.ceil(j / total_steps * 100)
+                                if args.n_batches > 0:
+                                    #if intermediates are saved to the subfolder, don't append a step or percentage to the name
+                                    if cur_t == -1 and args.intermediates_in_subfolder is True:
+                                        save_num = f'{frame_num:04}' if animation_mode != "None" else i
+                                        filename = f'{args.batch_name}({args.batchNum})_{save_num}.png'
                                     else:
-                                        filename = f'{args.batch_name}({args.batchNum})_{i:04}-{j:03}.png'
-                            image = TF.to_pil_image(
-                                image.add(1).div(2).clamp(0, 1))
+                                        #If we're working with percentages, append it
+                                        if args.steps_per_checkpoint is not None:
+                                            filename = f'{args.batch_name}({args.batchNum})_{i:04}-{percent:02}%.png'
+                                        # Or else, iIf we're working with specific steps, append those
+                                        else:
+                                            filename = f'{args.batch_name}({args.batchNum})_{i:04}-{j:03}.png'
+                                image = TF.to_pil_image(
+                                    image.add(1).div(2).clamp(0, 1))
 
-                            if j % args.display_rate == 0 or cur_t == -1:
-                                image.save('progress.png')
-                                display.clear_output(wait=True)
-                                #display.display(display.Image('progress.png'))
-                            if args.steps_per_checkpoint is not None:
-                                if j % args.steps_per_checkpoint == 0 and j > 0:
-                                    if args.intermediates_in_subfolder is True:
-                                        image.save(
-                                            f'{partialFolder}/{filename}')
+                                if j % args.display_rate == 0 or cur_t == -1:
+                                    image.save('progress.png')
+                                    display.clear_output(wait=True)
+                                    #display.display(display.Image('progress.png'))
+                                if args.steps_per_checkpoint is not None:
+                                    if j % args.steps_per_checkpoint == 0 and j > 0:
+                                        if args.intermediates_in_subfolder is True:
+                                            image.save(
+                                                f'{partialFolder}/{filename}')
+                                        else:
+                                            image.save(
+                                                f'{batchFolder}/{filename}')
+                                else:
+                                    if j in args.intermediate_saves:
+                                        if args.intermediates_in_subfolder is True:
+                                            image.save(
+                                                f'{partialFolder}/{filename}')
+                                        else:
+                                            image.save(
+                                                f'{batchFolder}/{filename}')
+                                if cur_t == -1:
+                                    if frame_num == 0:
+                                        save_settings()
+                                    if args.animation_mode != "None":
+                                        image.save('prevFrame.png')
+                                    if args.sharpen_preset != "Off" and animation_mode == "None":
+                                        imgToSharpen = image
+                                        if args.keep_unsharp is True:
+                                            image.save(
+                                                f'{unsharpenFolder}/{filename}'
+                                            )
                                     else:
                                         image.save(f'{batchFolder}/{filename}')
-                            else:
-                                if j in args.intermediate_saves:
-                                    if args.intermediates_in_subfolder is True:
-                                        image.save(
-                                            f'{partialFolder}/{filename}')
-                                    else:
-                                        image.save(f'{batchFolder}/{filename}')
-                            if cur_t == -1:
-                                if frame_num == 0:
-                                    save_settings()
-                                if args.animation_mode != "None":
-                                    image.save('prevFrame.png')
-                                if args.sharpen_preset != "Off" and animation_mode == "None":
-                                    imgToSharpen = image
-                                    if args.keep_unsharp is True:
-                                        image.save(
-                                            f'{unsharpenFolder}/{filename}')
-                                else:
-                                    image.save(f'{batchFolder}/{filename}')
-                                # if frame_num != args.max_frames-1:
-                                #   display.clear_output()
+                                    # if frame_num != args.max_frames-1:
+                                    #   display.clear_output()
 
-                dynamic_adjustment = True
-                adjustment_prompt = []
+                    dynamic_adjustment = False
+                    adjustment_prompt = []
+                    magnitude_multiplier = 1
 
-                if (dynamic_adjustment):
+                    if (dynamic_adjustment):
+                        image = sample['pred_xstart'][0]
+                        image = TF.to_pil_image(
+                            image.add(1).div(2).clamp(0, 1))
+                        stat = ImageStat.Stat(image)
+
+                        print(f" stddev: {stat.stddev}")
+                        print(f"var:    {stat.var}")
+                        print(f"mean:   {stat.mean}")
+                        # Inaccurate way of calculating brightness.  Adjust later.
+                        brightness = (stat.mean[0] + stat.mean[1] +
+                                      stat.mean[2]) / 3
+
+                        #print(f' brightness: {brightness}')
+                        overexposure_threshold = 140
+                        overexposure_adjustment_magnitude = 10
+                        overexposure_adjustment_max = 4
+
+                        underexposure_threshold = 80
+                        underexposure_adjustment_magnitude = 10
+                        underexposure_adjustment_max = 4
+
+                        #Track the total magnitude of the adjustments so it can be added to the main prompt
+                        total_adjustment_magnitude = 0
+                        adjustment_prompt = []
+
+                        if (brightness > overexposure_threshold):
+                            overexposure = brightness - overexposure_threshold
+                            magnitude = overexposure / (
+                                (255 - overexposure_threshold) /
+                                overexposure_adjustment_magnitude)
+                            if (magnitude > overexposure_adjustment_max):
+                                magnitude = overexposure_adjustment_max
+                            adjustment_prompt += [
+                                #f'overexposed:-{magnitude}',
+                                #f'grainy:-{magnitude}', f'low contrast:{magnitude}'
+                                f'overexposed, grainy, high contrast, brightness:-{magnitude}',
+                                f'dark color scheme:{magnitude}',
+                                #f'low contrast:{magnitude}',
+                                #f'white, yellow, pink, magenta:-{magnitude}'
+                            ]
+                            total_adjustment_magnitude += abs(magnitude)
+
+                        if (brightness < underexposure_threshold):
+                            underexposure = underexposure_threshold - brightness
+                            magnitude = underexposure / underexposure_threshold * underexposure_adjustment_magnitude
+                            if (magnitude > underexposure_adjustment_max):
+                                magnitude = underexposure_adjustment_max
+                            adjustment_prompt += [
+                                f'bright color scheme, midday, blinding light:{magnitude}'
+                            ]
+                            total_adjustment_magnitude += abs(magnitude)
+
+                        if (len(adjustment_prompt) > 0):
+                            print(
+                                f" {j}: {stat.mean}/{brightness}: {adjustment_prompt}"
+                            )
+                        magnitude_multiplier += total_adjustment_magnitude
+
+                        #if (j < 40 and len(adjustment_prompt) > 0):
+                        #    magnitude_multiplier *= (j + 1) / 40
+
+                    do_weights(j + 1 + skip_steps, adjustment_prompt,
+                               magnitude_multiplier)
+
                     image = sample['pred_xstart'][0]
                     image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
                     stat = ImageStat.Stat(image)
 
-                    print(f" stddev: {stat.stddev}")
-                    print(f"var:    {stat.var}")
-                    # Inaccurate way of calculating brightness.  Adjust later.
-                    brightness = (stat.mean[0] + stat.mean[1] +
-                                  stat.mean[2]) / 3
+                    brightness = sum(stat.mean) / len(stat.mean)
+                    s = steps - cur_t
+                    print(f" Brightness at {s}: {brightness}")
 
-                    #print(f' brightness: {brightness}')
-                    overexposure_threshold = 165
-                    overexposure_adjustment_magnitude = 10
-                    overexposure_adjustment_max = 4
-
-                    underexposure_threshold = 80
-                    underexposure_adjustment_magnitude = 10
-                    underexposure_adjustment_max = 4
-
-                    #Track the total magnitude of the adjustments so it can be added to the main prompt
-                    total_adjustment_magnitude = 0
-
-                    if (brightness > overexposure_threshold):
-                        overexposure = brightness - overexposure_threshold
-                        magnitude = overexposure / (
-                            (255 - overexposure_threshold) /
-                            overexposure_adjustment_magnitude)
-                        if (magnitude > overexposure_adjustment_max):
-                            magnitude = overexposure_adjustment_max
-                        adjustment_prompt = [
-                            #f'overexposed:-{magnitude}',
-                            #f'grainy:-{magnitude}', f'low contrast:{magnitude}'
-                            f'overexposed, grainy, high contrast:-{magnitude}',
-                        ]
-                        total_adjustment_magnitude += abs(magnitude)
-                    elif (brightness < underexposure_threshold):
-                        underexposure = underexposure_threshold - brightness
-                        magnitude = underexposure / underexposure_threshold * underexposure_adjustment_magnitude
-                        if (magnitude > underexposure_adjustment_max):
-                            magnitude = underexposure_adjustment_max
-                        adjustment_prompt = [
-                            f'bright color scheme, midday:{magnitude}'
-                        ]
-                        total_adjustment_magnitude += abs(magnitude)
-                    else:
-                        adjustment_prompt = []
-
-                    if (len(adjustment_prompt) > 0):
-                        print(
-                            f" {j}: {stat.mean}/{brightness}: {adjustment_prompt}"
-                        )
-                do_weights(j + 1 + skip_steps, adjustment_prompt,
-                           total_adjustment_magnitude + 1)
+                    if (brightness > 180):
+                        print(" Brightness over threshold")
+                        filter = ImageEnhance.Brightness(image)
+                        image = filter.enhance(0.5)
+                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
+                            2).sub(1)
+                        break
 
             with image_display:
                 if args.sharpen_preset != "Off" and animation_mode == "None":

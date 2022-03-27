@@ -841,7 +841,11 @@ def do_run():
                 model_stat["weights"] /= model_stat["weights"].sum().abs()
                 model_stats.append(model_stat)
 
-        do_weights(0)
+        for i in range(skip_steps - 1, 0, -1):
+            if (str(i) in frame_prompt.keys()):
+                do_weights(i)
+                break
+
         init = None
         if init_image is not None:
             init = Image.open(fetch(init_image)).convert('RGB')
@@ -1163,7 +1167,7 @@ def do_run():
                         #if (j < 40 and len(adjustment_prompt) > 0):
                         #    magnitude_multiplier *= (j + 1) / 40
 
-                    do_weights(j + 1 + skip_steps, adjustment_prompt,
+                    do_weights(steps - cur_t - 1, adjustment_prompt,
                                magnitude_multiplier)
 
                     image = sample['pred_xstart'][0]

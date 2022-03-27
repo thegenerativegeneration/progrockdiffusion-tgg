@@ -993,7 +993,7 @@ def do_run():
                 init = regen_perlin()
 
             def do_sample_fn(_init_image, _skip):
-                print(" do_sample_fn")
+                print(f" do_sample_fn {_skip}")
                 if model_config['timestep_respacing'].startswith('ddim'):
                     samples = sample_fn(
                         model,
@@ -1027,7 +1027,7 @@ def do_run():
             imgToSharpen = None
             adjustment_prompt = []
             while cur_t >= 0:
-                samples = do_sample_fn(init, skip_steps + (steps - cur_t - 1))
+                samples = do_sample_fn(init, steps - cur_t - 1)
                 for j, sample in enumerate(samples):
                     cur_t -= 1
                     intermediateStep = False

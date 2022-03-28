@@ -22,16 +22,16 @@ CPU: For CPU mode, you will need at least 16gb of RAM.
 STORAGE: you'll need at least 40gb of free disk space, depending on which models you enable.
 
 # Software prerequisties
-## Linux
+**[Linux]**
 Ubuntu 20.04 or similar (A docker environment, VM, or Windows Subsystem for Linux should work provided it can access your GPU).
 
 If using a GPU: CUDA 11.4+ (installation instructions can be found here: https://developer.nvidia.com/cuda-11-4-1-download-archive).
 
-## Windows
+**[Windows]**
 Windows 10 or 11 (If using a GPU, NVIDIA drivers installed)
 Other versions may work but are untested
 
-## MacOS
+**[MacOS]**
 Minimal testing has been done with the latest MacOS on an M1 Macbook Air.
 PLEASE NOTE: GPU acceleration is not yet supported. It will work, but it will be *slow.*
 

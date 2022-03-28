@@ -54,10 +54,12 @@ sudo apt install git
 ```
 
 **[Windows]**
+
 Open a Powershell Prompt (*Powershell* is important as it handles path names with forward-slashes)
 Install git from here: https://git-scm.com/download/win
 
 **[MacOS]**
+
 Open a terminal and run this command:
 ```
 git --version

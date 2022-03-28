@@ -55,4 +55,4 @@ python3 prd.py
 ```
 When it's done, check the images_out folder to see if the image was created!
 
-**You can now return to the README file to learn how to use Progrockdiffusion**
+**You can now return to the [README](README.md) file to learn how to use Progrockdiffusion**

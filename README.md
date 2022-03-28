@@ -12,14 +12,14 @@ In addition to Disco Diffusion's great features, Prog Rock has the following ben
 - Some variables can be randomized to help you explore the possible outputs of a prompt
 - If you put \_artist\_ in your prompt, it will be replaced with a randomly selected artist
 
-# Hardware prerequisites
-You will need at least 16gb of RAM if not using a GPU.
-An Nvidia GPU is *highly* recommended! The speed improvement is massive.
-8gb is probably the minimum amount of GPU memory.
+# Hardware requirements
+GPU: An Nvidia GPU is *highly* recommended! The speed improvement is massive. 8gb is probably the minimum amount of GPU memory. This author has an RTX 3080 with 10gb and it runs fairly well, but some advanced features are not possible with "only" 10gb.
 
-This author has an RTX 3080 with 10gb and it runs fairly well, but some advanced features are not possible with "only" 10gb.
+As for AMD cards, I have not had a chance to test one. If you're interested in helping me figure out if it's possible, drop me a note in the issues page.
 
-You'll also need between 20 and 40gb of free disk space, depending on which models you enable.
+CPU: For CPU mode, you will need at least 16gb of RAM.
+
+STORAGE: you'll need at least 40gb of free disk space, depending on which models you enable.
 
 # Software prerequisties
 ## Linux
@@ -46,76 +46,59 @@ The output should indicate a driver version, CUDA version, and so on. If you get
 
 # First time setup
 
-## Download and install Anaconda
 **[Linux]**
 ```
 sudo apt update
 sudo apt upgrade -y
-wget https://repo.anaconda.com/archive/Anaconda3-2021.11-Linux-x86_64.sh
-bash Anaconda3-2021.11-Linux-x86_64.sh
-respond 'yes' to accept license terms and provide install dir when prompted
-respond 'yes' to run conda initialization
+sudo apt install git
 ```
-Logout and back in for the changes to take effect
-
 
 **[Windows]**
-```
-Download from here and install: https://www.anaconda.com/products/individual
-```
-From the start menu, open a "Anaconda Powershell Prompt" (*Powershell* is important)
+Open a Powershell Prompt (*Powershell* is important as it handles path names with forward-slashes)
+Install git from here: https://git-scm.com/download/win
 
 **[MacOS]**
+Open a terminal and run this command:
+```
+git --version
+```
+It will either tell you the version if git is installed, or prompt you to install Xcode which includes git.
 
-Install Homebrew:
-```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-Restart your terminal, then:
-```
-brew install miniforge
-conda init zsh
-```
-Restart your terminal again.
+## Install Python
 
-## Create prog rock diffusion env
-
-**[Linux and Windows]**
+**[Linux]**
 ```
-conda create --name progrockdiffusion python=3.7
+apt-get -y install python3
 ```
+**[Windows]**
+Download and install Python 3.7: https://www.python.org/ftp/python/3.7.9/python-3.7.9-amd64.exe
 
 **[MacOS]**
-```
-conda create --name progrockdiffusion python=3.8
-```
+Download and install Python 3.8: https://www.python.org/ftp/python/3.8.10/python-3.8.10-macos11.pkg
 
 **[All Platforms]**
+Install pip:
 ```
-conda activate progrockdiffusion
+python -m ensurepip --upgrade
 ```
+(note on linux you might need to use python3 instead of python)
 
-Now change to whatever base directory you want ProgRockDiffusion to go into.
 ## Clone the prog rock diffusion repo
+First, in your terminal or Powershell prompt, go the directory where you want progrockdiffusion to live. 
+If you don't know how to change directories, you may want to stop here and find a tutorial on the basics of using a commandline interface on your platform.
+
+Once you're in the right directory:
 ```
 git clone https://github.com/lowfuel/progrockdiffusion.git
 cd progrockdiffusion
 ```
 **Note: the "cd" command above is important, as the next steps will add additional libraries and data to ProgRockDiffusion**
 
-**From here on out, this is the directory you'll want to be in when you use the program.**
+***From here on out, this is the directory you'll want to be in when you use the program.***
 
 ## Install the required libraries and tools
 ```
-git clone https://github.com/crowsonkb/guided-diffusion
-git clone https://github.com/openai/CLIP.git
-git clone https://github.com/assafshocher/ResizeRight.git
-git clone https://github.com/CompVis/latent-diffusion.git
-git clone https://github.com/CompVis/taming-transformers
-pip install -e ./CLIP
-pip install -e ./guided-diffusion
-pip install -e ./taming-transformers
-pip install lpips datetime timm
+pip install -r requirements.base.txt
 ```
 ## Basic or GPU Accelerated PyTorch
 You defnitely should install the GPU version if you have an NVIDIA card. It's almost 30x faster.
@@ -123,16 +106,12 @@ Otherwise, you can install the CPU version instead (required for MacOS)
 
 ### EITHER Install GPU accelerated PyTorch
 ```
-pip install torch==1.10.2+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
-pip install torchvision==0.11.3+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
-pip install torchaudio==0.10.2+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
+pip install -r requirements.gpu.txt
 ```
 
 ### OR install the basic CPU version of PyTorch (warning - very slow!)
 ```
-pip install torch==1.11.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-pip install torchvision==0.12.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-pip install torchaudio==0.11.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
+pip install -r requirements.cpu.txt
 ```
 
 ## Install remaining libraries and tools
@@ -142,12 +121,7 @@ export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
 export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
 pip install grpcio
 ```
-**[All Platforms]**
-```
-pip install ipywidgets omegaconf pytorch_lightning einops
-pip install matplotlib pandas
-conda install opencv
-```
+
 **[Linux]** Depending on your Linux platform, you may get an error about libGL.so.1
 If you do, try installing these dependencies:
 ```
@@ -162,11 +136,6 @@ sudo apt install imagemagick
 
 NOTE: On your first run it might appear to hang. Let it go for a good while, though, as it might just be downloading models.
 Somtimes there is no feedback during the download process (why? Who knows)
-
-If you've opened a new terminal or powershell prompt, you may need to activate your ProgRockDiffusion session again:
-```
-conda activate progrockdiffusion
-```
 
 CD to the directory where you installed ProgRockDiffusion. Now you're ready!
 

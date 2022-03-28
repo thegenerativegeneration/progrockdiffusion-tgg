@@ -30,7 +30,7 @@ If you don't know how to change directories, you may want to stop here and find 
 
 Once you're in the right directory:
 ```
-git clone https://github.com/lowfuel/progrockdiffusion.git
+git clone --recurse-submodules https://github.com/lowfuel/progrockdiffusion.git
 cd progrockdiffusion
 ```
 **Note: the "cd" command above is important, as the next steps will add additional libraries and data inside ProgRockDiffusion**

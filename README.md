@@ -1,5 +1,6 @@
 # progrockdiffusion
-A command line version of [Disco Diffusion](https://github.com/alembics/disco-diffusion).
+A command line version of [Disco Diffusion](https://github.com/alembics/disco-diffusion) for still image generation.
+*Animations are not currently supported.*
 
 # Hardware prerequisites
 You will need at least 16gb of RAM if not using a GPU.

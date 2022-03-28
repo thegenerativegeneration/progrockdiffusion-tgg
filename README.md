@@ -2,6 +2,16 @@
 A command line version of [Disco Diffusion](https://github.com/alembics/disco-diffusion) for still image generation.
 *Animations are not currently supported.*
 
+In addition to Disco Diffusion's great features, Prog Rock has the following benefits:
+
+- Uses your own hardware
+- GPU and CPU modes are supported (note: CPU mode is quite slow)
+- Works offline (once the required files are downloaded). No more colab disconnects!
+- Can be invoked from a script or batch file for mass unattended batches
+- Multiple partial settings files are supported, allowing you to layer settings
+- Some variables can be randomized to help you explore the possible outputs of a prompt
+- If you put \_artist\_ in your prompt, it will be replaced with a randomly selected artist
+
 # Hardware prerequisites
 You will need at least 16gb of RAM if not using a GPU.
 An Nvidia GPU is *highly* recommended! The speed improvement is massive.

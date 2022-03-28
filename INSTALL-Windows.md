@@ -10,14 +10,15 @@ nvidia-smi
 If you get an error, stop here and troubleshoot how to get Nvidia drivers
 
 # Setup
-Open a PowerShell prompt. Powershell is important because it handles forward-slashes in path names, which Disco Diffusion uses in certain places.
-You will want to use a Powershell prompt for progrockdiffusion.
-
 ## Install git
 Install git from here: https://git-scm.com/download/win
 
 ## Install Python
 Download and install Python 3.7: https://www.python.org/ftp/python/3.7.9/python-3.7.9-amd64.exe
+
+## Open a PowerShell prompt
+Powershell is important because it handles forward-slashes in path names, which Disco Diffusion uses in certain places.
+You will want to use a Powershell prompt for progrockdiffusion.
 
 ## Install pip:
 ```
@@ -25,7 +26,7 @@ python -m ensurepip --upgrade
 ```
 
 ## Clone the prog rock diffusion repo
-First, in your terminal, go the directory above where you want progrockdiffusion to live. 
+First, in your PowerShell window, go the directory above where you want progrockdiffusion to live. 
 If you don't know how to change directories, you may want to stop here and find a tutorial on the basics of using a terminal.
 
 Once you're in the right directory:

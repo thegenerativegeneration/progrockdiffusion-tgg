@@ -19,7 +19,7 @@ apt-get -y install python3
 
 Install pip:
 ```
-python3 -m ensurepip --upgrade
+sudo apt-get install python3-pip
 ```
 
 ## Clone the prog rock diffusion repo

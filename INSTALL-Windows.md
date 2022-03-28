@@ -21,7 +21,7 @@ Download and install Python 3.7: https://www.python.org/ftp/python/3.7.9/python-
 
 ## Install pip:
 ```
-python3 -m ensurepip --upgrade
+python -m ensurepip --upgrade
 ```
 
 ## Clone the prog rock diffusion repo
@@ -55,7 +55,7 @@ pip install -r requirements.cpu.txt
 ## Test
 To ensure everything is working, you can run progrockdiffusion with its default settings:
 ```
-python3 prd.py
+python prd.py
 ```
 When it's done, check the images_out folder to see if the image was created!
 

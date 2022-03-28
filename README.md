@@ -128,7 +128,9 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 ```
 
 ## Switch between GPU and CPU modes
-Let's assume you installed the GPU version. You can adjust these instructions if you did CPU first, of course.
+This is an advanced technique and requires some expertise. The main issue is you need to be able to switch between two pytorch versions. The easiest way to accomplish that is to do your install twice, each within a separate conda environment using Anaconda. I leave it up to you to learn how to do that.
+Once you've installed Anaconda and re-installed ProgRockDiffusion within a conda environment, you can create a second environment that is a clone of the first, but with a different pytorch, like so:
+
 Clone your existing conda environment:
 ```
 conda create --name prdcpu --clone progrockdiffusion
@@ -136,9 +138,7 @@ conda activate prdcpu
 ```
 Now install the CPU version of pytorch:
 ```
-pip install torch==1.11.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-pip install torchvision==0.12.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
-pip install torchaudio==0.11.0+cpu -f https://download.pytorch.org/whl/cpu/torch_stable.html
+pip install -r requirements.cpu.txt
 ```
 All set! You can now switch between the two by simply doing:
 ```

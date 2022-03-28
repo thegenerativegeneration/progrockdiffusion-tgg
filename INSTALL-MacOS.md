@@ -11,11 +11,12 @@ git --version
 It will either tell you the version if git is installed, or prompt you to install Xcode which includes git.
 
 ## Install Python
-Download and install Python 3.8: https://www.python.org/ftp/python/3.8.10/python-3.8.10-macos11.pkg
+Download and install Python 3.9.11: https://www.python.org/ftp/python/3.9.11/python-3.9.11-macos11.pkg
+(note: Newer versions might work, but have not been tested. Feel free to try them, but come back to this version if you have problems)
 
-Install pip:
+Install pip if required:
 ```
-python -m ensurepip --upgrade
+python3 -m ensurepip --upgrade
 ```
 
 ## Clone the prog rock diffusion repo
@@ -33,25 +34,25 @@ cd progrockdiffusion
 
 ## Install the required libraries and tools
 ```
-pip install -r requirements.base.txt
+pip3 install -r requirements.base.txt
 ```
 
 ## Install the basic CPU version of PyTorch (warning - very slow!)
 ```
-pip install -r requirements.cpu.txt
+pip3 install -r requirements.cpu.txt
 ```
 
 ## Finally:
 ```
 export GRPC_PYTHON_BUILD_SYSTEM_OPENSSL=1
 export GRPC_PYTHON_BUILD_SYSTEM_ZLIB=1
-pip install grpcio
+pip3 install grpcio
 ```
 
 ## Test
 To ensure everything is working, you can run progrockdiffusion with its default settings:
 ```
-python prd.py
+python3 prd.py
 ```
 When it's done, check the images_out folder to see if the image was created!
 

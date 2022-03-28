@@ -53,7 +53,7 @@ The output should indicate a driver version, CUDA version, and so on. If you get
 ```
 sudo apt update
 sudo apt upgrade -y
-sudo apt install git
+sudo apt install git nano
 ```
 
 **[Windows]**

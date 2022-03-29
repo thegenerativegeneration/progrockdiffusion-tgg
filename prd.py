@@ -158,6 +158,10 @@ my_parser = argparse.ArgumentParser(
     description='Generate images from text prompts.',
     epilog=example_text,
     formatter_class=argparse.RawDescriptionHelpFormatter)
+my_parser.add_argument('-g',
+                       '--gui',
+                       action=argparse.BooleanOptionalAction,
+                       help='Use the PyQt5 GUI')
 my_parser.add_argument(
     '-s',
     '--settings',
@@ -267,6 +271,10 @@ translation_x = (settings_file['translation_x'])
 translation_y = (settings_file['translation_y'])
 video_init_path = (settings_file['video_init_path'])
 extract_nth_frame = (settings_file['extract_nth_frame'])
+stop_early = 0
+
+if ('stop_early' in settings_file):
+    stop_early = (settings_file['stop_early'])
 
 #Now override some depending on command line and maybe a special case
 if cl_args.output:
@@ -280,6 +288,11 @@ if cl_args.prompt:
 if cl_args.ignoreseed:
     set_seed = 'random_seed'
     print(f'Using a random seed instead of the one provided by the JSON file.')
+
+gui = False
+if cl_args.gui:
+    gui = True
+    import prdgui
 
 import torch
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -841,10 +854,17 @@ def do_run():
                 model_stat["weights"] /= model_stat["weights"].sum().abs()
                 model_stats.append(model_stat)
 
-        for i in range(skip_steps - 1, 0, -1):
-            if (str(i) in frame_prompt.keys()):
-                do_weights(i)
-                break
+        initial_weights = False
+
+        if (skip_steps > 0):
+            for i in range(skip_steps, 0, -1):
+                if (str(i) in frame_prompt.keys()):
+                    do_weights(i)
+                    initial_weights = True
+                    break
+
+        if (not initial_weights):
+            do_weights(0)
 
         init = None
         if init_image is not None:
@@ -1033,10 +1053,13 @@ def do_run():
             # display.clear_output(wait=True)
             imgToSharpen = None
             adjustment_prompt = []
-            while cur_t >= 0:
+            while cur_t >= stop_early:
                 samples = do_sample_fn(init, steps - cur_t - 1)
                 for j, sample in enumerate(samples):
                     cur_t -= 1
+                    if (cur_t < stop_early):
+                        cur_t = -1
+
                     intermediateStep = False
                     if args.steps_per_checkpoint is not None:
                         if j % steps_per_checkpoint == 0 and j > 0:
@@ -1104,11 +1127,14 @@ def do_run():
                     dynamic_adjustment = False
                     adjustment_prompt = []
                     magnitude_multiplier = 1
+                    image = sample['pred_xstart'][0]
+                    image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
+
+                    if (gui):
+                        prdgui.update_image(image)
+                        #prdgui.update_text(str(cur_t))
 
                     if (dynamic_adjustment):
-                        image = sample['pred_xstart'][0]
-                        image = TF.to_pil_image(
-                            image.add(1).div(2).clamp(0, 1))
                         stat = ImageStat.Stat(image)
 
                         print(f" stddev: {stat.stddev}")
@@ -1176,7 +1202,7 @@ def do_run():
 
                     brightness = sum(stat.mean) / len(stat.mean)
                     s = steps - cur_t
-                    print(f" Brightness at {s}: {brightness}")
+                    #print(f" Brightness at {s}: {brightness}")
 
                     if (brightness > 180):
                         print(" Brightness over threshold")
@@ -1192,6 +1218,9 @@ def do_run():
                         image = filter.enhance(1.3)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
                             2).sub(1)
+                        break
+
+                    if (cur_t == -1):
                         break
 
             with image_display:
@@ -2855,7 +2884,11 @@ if model_config['use_fp16']:
 gc.collect()
 torch.cuda.empty_cache()
 try:
-    do_run()
+    if (gui):
+        print("running with gui")
+        prdgui.run_gui(do_run, side_x, side_y)
+    else:
+        do_run()
 except KeyboardInterrupt:
     pass
 finally:

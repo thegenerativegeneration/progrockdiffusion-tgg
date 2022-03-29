@@ -50,7 +50,7 @@ Stripped down for basic Python use by Jason Hough
 
 import os
 from os import path
-
+import shutil
 root_path = os.getcwd()
 
 
@@ -60,7 +60,7 @@ def createPath(filepath):
         os.makedirs(filepath)
         print(f'Made {filepath}')
     else:
-        print(f'filepath {filepath} exists.')
+        pass
 
 
 initDirPath = f'{root_path}/init_images'
@@ -75,7 +75,17 @@ model_256_downloaded = False
 model_512_downloaded = False
 model_secondary_downloaded = False
 
+python_example = "python3"
+
 import sys
+if sys.platform == 'win32':
+    import ssl
+    ssl._create_default_https_context = ssl._create_unverified_context
+    python_example = "python"
+
+#Uncomment the below line if you're getting an error about OMP: Error #15.
+#os.environ['KMP_DUPLICATE_LIB_OK']='TRUE'
+
 from dataclasses import dataclass
 from functools import partial
 import cv2
@@ -96,13 +106,14 @@ from torch import nn
 from torch.nn import functional as F
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
-from tqdm.notebook import tqdm
+from tqdm import tqdm
 sys.path.append(f'{root_path}/ResizeRight')
 sys.path.append(f'{root_path}/CLIP')
 sys.path.append(f'{root_path}/guided-diffusion')
+#sys.path.append(f'{root_path}/SLIP')
 import clip
 from resize_right import resize
-# from models import SLIP_VITB16, SLIP, SLIP_VITL16
+#from models import SLIP_VITB16, SLIP, SLIP_VITL16
 from guided_diffusion.script_util import create_model_and_diffusion, model_and_diffusion_defaults
 from datetime import datetime
 import numpy as np
@@ -134,41 +145,115 @@ from omegaconf import OmegaConf
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# Image display
-#from PyQt5.QtWidgets import QWidget
+# Setting default values for everything, which can then be overridden by settings files.
+batch_name = "Default"
+text_prompts = "No prompt in the file, by Sir Digby Chicken Caeser"
+image_prompts = {}
+clip_guidance_scale = "auto"
+tv_scale = 0
+range_scale = 150
+sat_scale = 0
+n_batches = 1
+display_rate = 50
+cutn_batches = 4
+max_frames = 10000
+interp_spline = "Linear"
+init_image = None
+init_scale = 1000
+skip_steps = 0
+frames_scale = 1500
+frames_skip_steps = "60%"
+perlin_init = False
+perlin_mode = "mixed"
+skip_augs = False
+randomize_class = True
+clip_denoised = False
+clamp_grad = True
+clamp_max = "auto"
+set_seed = "random_seed"
+fuzzy_prompt = False
+rand_mag = 0.05
+eta = "auto"
+width_height = [832, 512]
+diffusion_model = "512x512_diffusion_uncond_finetune_008100"
+use_secondary_model = True
+steps = 250
+sampling_mode = "ddim"
+diffusion_steps = 1000
+ViTB32 = True
+ViTB16 = True
+ViTL14 = False
+RN101 = False
+RN50 = True
+RN50x4 = False
+RN50x16 = False
+RN50x64 = False
+cut_overview = "[12]*400+[4]*600"
+cut_innercut = "[4]*400+[12]*600"
+cut_ic_pow = 1
+cut_icgray_p = "[0.2]*400+[0]*600"
+key_frames = True
+angle = "0:(0)"
+zoom = "0: (1), 10: (1.05)"
+translation_x = "0: (0)"
+translation_y = "0: (0)"
+video_init_path = "/content/training.mp4"
+extract_nth_frame = 2
+intermediate_saves = 0
+stop_early = 0
 
 # Command Line parse
 import argparse
-example_text = '''Usage examples:
+example_text = f'''Usage examples:
 
 To simply use the 'Default' output directory and get settings from settings.json:
- python3 prd.py
+ {python_example} prd.py
 
 To use your own settings.json (note that putting it in quotes can help parse errors):
- python3 prd.py -s "some_directory/mysettings.json"
+ {python_example} prd.py -s "some_directory/mysettings.json"
+
+Note that multiple settings files are allowed. They're parsed in order. The values present are applied over any previous value:
+ {python_example} prd.py -s "some_directory/mysettings.json" -s "highres.json"
 
 To use the 'Default' output directory and settings, but override the output name and prompt:
- python3 prd.py -p "A cool image of the author of this program" -o Coolguy
+ {python_example} prd.py -p "A cool image of the author of this program" -o Coolguy
 
 To use multiple prompts with optional weight values:
- python3 prd.py -p "A cool image of the author of this program" -p "Pale Blue Sky:.5"'''
+ {python_example} prd.py -p "A cool image of the author of this program" -p "Pale Blue Sky:.5"
+
+You can ignore the seed coming from a settings file by adding -i, resulting in a new random seed
+
+To force use of the CPU for image generation, add a -c or --cpu with how many threads to use (warning: VERY slow):
+ {python_example} prd.py -c 16
+
+To generate a checkpoint image at 20% steps, for use as an init image in future runs, add -g or --geninit:
+ {python_example} prd.py -g
+
+To use a checkpoint image at 20% steps add -u or --useinit:
+ {python_example} prd.py -u
+
+To specify which CUDA device to use (advanced) by device ID (default is 0):
+ {python_example} prd.py --cuda 1
+
+'''
 
 my_parser = argparse.ArgumentParser(
     prog='ProgRockDiffusion',
     description='Generate images from text prompts.',
     epilog=example_text,
     formatter_class=argparse.RawDescriptionHelpFormatter)
-my_parser.add_argument('-g',
-                       '--gui',
+my_parser.add_argument('--gui',
                        action=argparse.BooleanOptionalAction,
                        help='Use the PyQt5 GUI')
 my_parser.add_argument(
     '-s',
     '--settings',
-    action='store',
+    action='append',
     required=False,
-    default='settings.json',
-    help='A settings JSON file to use, best to put in quotes')
+    default=['settings.json'],
+    help=
+    'A settings JSON file to use, best to put in quotes. Multiples are allowed and layered in order.'
+)
 my_parser.add_argument('-o',
                        '--output',
                        action='store',
@@ -185,96 +270,203 @@ my_parser.add_argument('-i',
                        required=False,
                        help='Ignores the random seed in the settings file')
 my_parser.add_argument(
-    '-os',
-    '--override-settings',
+    '-c',
+    '--cpu',
+    type=int,
+    nargs='?',
     action='store',
     required=False,
-    help='A settings JSON file that overrides other settings')
+    default=False,
+    const=0,
+    help='Force use of CPU instead of GPU, and how many threads to run')
+my_parser.add_argument(
+    '-g',
+    '--geninit',
+    type=int,
+    nargs='?',
+    action='store',
+    required=False,
+    default=False,
+    const=0.2,
+    help=
+    'Save a partial image at the specified percent of steps (1 to 99), for use as later init image'
+)
+my_parser.add_argument('-u',
+                       '--useinit',
+                       action='store_true',
+                       required=False,
+                       default=False,
+                       help='Use the specified init image')
+my_parser.add_argument('--cuda',
+                       action='store',
+                       required=False,
+                       default='0',
+                       help='Which GPU to use. Default is 0.')
 
 cl_args = my_parser.parse_args()
 
-# Load the JSON config file
-try:
-    with open(cl_args.settings, 'r') as json_file:
-        settings_file = json.load(json_file)
-except Exception as e:
-    print('Failed to open or parse ' + cl_args.settings +
-          ' - Check formatting.')
-    print(e)
-    quit()
 
-if (cl_args.override_settings):
+# Simple check to see if a key is present in the settings file
+def is_json_key_present(json, key):
     try:
-        with open(cl_args.override_settings, 'r') as json_file:
-            settings_file.update(json.load(json_file))
+        buf = json[key]
+    except KeyError:
+        return False
+    return True
+
+
+#A simple way to ensure values are in an accceptable range, and also return a random value if desired
+def clampval(minval, val, maxval):
+    if val == "random":
+        try:
+            val = random.randint(minval, maxval)
+        except:
+            val = random.uniform(minval, maxval)
+        return val
+    #Auto is handled later, so we just return it back as is
+    elif val == "auto":
+        return val
+    elif val < minval:
+        val = minval
+        return val
+    elif val > maxval:
+        val = maxval
+        return val
+    else:
+        return val
+
+
+# Load the JSON config files
+for setting_arg in cl_args.settings:
+    try:
+        with open(setting_arg, 'r', encoding="utf-8") as json_file:
+            print(f'Parsing {setting_arg}')
+            settings_file = json.load(json_file)
+            # If any of these around in this settings file they'll be applied, overwriting any previous value.
+            # Some are passed by clampval first to make sure they are within bounds (or randomized if desired)
+            if is_json_key_present(settings_file, 'batch_name'):
+                batch_name = (settings_file['batch_name'])
+            if is_json_key_present(settings_file, 'text_prompts'):
+                text_prompts = (settings_file['text_prompts'])
+            if is_json_key_present(settings_file, 'image_prompts'):
+                image_prompts = (settings_file['image_prompts'])
+            if is_json_key_present(settings_file, 'clip_guidance_scale'):
+                clip_guidance_scale = clampval(
+                    1500, (settings_file['clip_guidance_scale']), 100000)
+            if is_json_key_present(settings_file, 'tv_scale'):
+                tv_scale = clampval(0, (settings_file['tv_scale']), 1000)
+            if is_json_key_present(settings_file, 'range_scale'):
+                range_scale = clampval(0, (settings_file['range_scale']), 1000)
+            if is_json_key_present(settings_file, 'sat_scale'):
+                sat_scale = clampval(0, (settings_file['sat_scale']), 20000)
+            if is_json_key_present(settings_file, 'n_batches'):
+                n_batches = (settings_file['n_batches'])
+            if is_json_key_present(settings_file, 'display_rate'):
+                display_rate = (settings_file['display_rate'])
+            if is_json_key_present(settings_file, 'cutn_batches'):
+                cutn_batches = (settings_file['cutn_batches'])
+            if is_json_key_present(settings_file, 'max_frames'):
+                max_frames = (settings_file['max_frames'])
+            if is_json_key_present(settings_file, 'interp_spline'):
+                interp_spline = (settings_file['interp_spline'])
+            if is_json_key_present(settings_file, 'init_image'):
+                init_image = (settings_file['init_image'])
+            if is_json_key_present(settings_file, 'init_scale'):
+                init_scale = (settings_file['init_scale'])
+            if is_json_key_present(settings_file, 'skip_steps'):
+                skip_steps = (settings_file['skip_steps'])
+            if is_json_key_present(settings_file, 'stop_early'):
+                skip_steps = (settings_file['stop_early'])
+            if is_json_key_present(settings_file, 'frames_scale'):
+                frames_scale = (settings_file['frames_scale'])
+            if is_json_key_present(settings_file, 'frames_skip_steps'):
+                frames_skip_steps = (settings_file['frames_skip_steps'])
+            if is_json_key_present(settings_file, 'perlin_init'):
+                perlin_init = (settings_file['perlin_init'])
+            if is_json_key_present(settings_file, 'perlin_mode'):
+                perlin_mode = (settings_file['perlin_mode'])
+            if is_json_key_present(settings_file, 'skip_augs'):
+                skip_augs = (settings_file['skip_augs'])
+            if is_json_key_present(settings_file, 'randomize_class'):
+                randomize_class = (settings_file['randomize_class'])
+            if is_json_key_present(settings_file, 'clip_denoised'):
+                clip_denoised = (settings_file['clip_denoised'])
+            if is_json_key_present(settings_file, 'clamp_grad'):
+                clamp_grad = (settings_file['clamp_grad'])
+            if is_json_key_present(settings_file, 'clamp_max'):
+                clamp_max = clampval(0.001, (settings_file['clamp_max']), 0.1)
+            if is_json_key_present(settings_file, 'set_seed'):
+                set_seed = (settings_file['set_seed'])
+            if is_json_key_present(settings_file, 'fuzzy_prompt'):
+                fuzzy_prompt = (settings_file['fuzzy_prompt'])
+            if is_json_key_present(settings_file, 'rand_mag'):
+                rand_mag = clampval(0.0, (settings_file['rand_mag']), 0.999)
+            if is_json_key_present(settings_file, 'eta'):
+                eta = clampval(0.0, (settings_file['eta']), 0.999)
+            if is_json_key_present(settings_file, 'width'):
+                width_height = [(settings_file['width']),
+                                (settings_file['height'])]
+            if is_json_key_present(settings_file, 'width_height_scale'):
+                width_height_scale = (settings_file['width_height_scale'])
+            if is_json_key_present(settings_file, 'diffusion_model'):
+                diffusion_model = (settings_file['diffusion_model'])
+            if is_json_key_present(settings_file, 'use_secondary_model'):
+                use_secondary_model = (settings_file['use_secondary_model'])
+            if is_json_key_present(settings_file, 'steps'):
+                steps = (settings_file['steps'])
+            if is_json_key_present(settings_file, 'sampling_mode'):
+                sampling_mode = (settings_file['sampling_mode'])
+            if is_json_key_present(settings_file, 'diffusion_steps'):
+                diffusion_steps = (settings_file['diffusion_steps'])
+            if is_json_key_present(settings_file, 'ViTB32'):
+                ViTB32 = (settings_file['ViTB32'])
+            if is_json_key_present(settings_file, 'ViTB16'):
+                ViTB16 = (settings_file['ViTB16'])
+            if is_json_key_present(settings_file, 'ViTL14'):
+                ViTL14 = (settings_file['ViTL14'])
+            if is_json_key_present(settings_file, 'RN101'):
+                RN101 = (settings_file['RN101'])
+            if is_json_key_present(settings_file, 'RN50'):
+                RN50 = (settings_file['RN50'])
+            if is_json_key_present(settings_file, 'RN50x4'):
+                RN50x4 = (settings_file['RN50x4'])
+            if is_json_key_present(settings_file, 'RN50x16'):
+                RN50x16 = (settings_file['RN50x16'])
+            if is_json_key_present(settings_file, 'RN50x64'):
+                RN50x64 = (settings_file['RN50x64'])
+            if is_json_key_present(settings_file, 'SLIPB16'):
+                SLIPB16 = (settings_file['SLIPB16'])
+            if is_json_key_present(settings_file, 'SLIPL16'):
+                SLIPL16 = (settings_file['SLIPL16'])
+            if is_json_key_present(settings_file, 'cut_overview'):
+                cut_overview = (settings_file['cut_overview'])
+            if is_json_key_present(settings_file, 'cut_innercut'):
+                cut_innercut = (settings_file['cut_innercut'])
+            if is_json_key_present(settings_file, 'cut_ic_pow'):
+                cut_ic_pow = clampval(0.5, (settings_file['cut_ic_pow']), 100)
+            if is_json_key_present(settings_file, 'cut_icgray_p'):
+                cut_icgray_p = (settings_file['cut_icgray_p'])
+            if is_json_key_present(settings_file, 'key_frames'):
+                key_frames = (settings_file['key_frames'])
+            if is_json_key_present(settings_file, 'angle'):
+                angle = (settings_file['angle'])
+            if is_json_key_present(settings_file, 'zoom'):
+                zoom = (settings_file['zoom'])
+            if is_json_key_present(settings_file, 'translation_x'):
+                translation_x = (settings_file['translation_x'])
+            if is_json_key_present(settings_file, 'translation_y'):
+                translation_y = (settings_file['translation_y'])
+            if is_json_key_present(settings_file, 'video_init_path'):
+                video_init_path = (settings_file['video_init_path'])
+            if is_json_key_present(settings_file, 'extract_nth_frame'):
+                extract_nth_frame = (settings_file['extract_nth_frame'])
+            if is_json_key_present(settings_file, 'intermediate_saves'):
+                intermediate_saves = (settings_file['intermediate_saves'])
     except Exception as e:
-        print('Failed to open or parse ' + cl_args.override_settings +
+        print('Failed to open or parse ' + setting_arg +
               ' - Check formatting.')
         print(e)
         quit()
-
-# Set all of the settings from the specified file
-batch_name = (settings_file['batch_name'])
-text_prompts = (settings_file['text_prompts'])
-image_prompts = (settings_file['image_prompts'])
-clip_guidance_scale = (settings_file['clip_guidance_scale'])
-tv_scale = (settings_file['tv_scale'])
-range_scale = (settings_file['range_scale'])
-sat_scale = (settings_file['sat_scale'])
-n_batches = (settings_file['n_batches'])
-display_rate = (settings_file['display_rate'])
-cutn_batches = (settings_file['cutn_batches'])
-max_frames = (settings_file['max_frames'])
-interp_spline = (settings_file['interp_spline'])
-init_image = (settings_file['init_image'])
-init_scale = (settings_file['init_scale'])
-skip_steps = (settings_file['skip_steps'])
-frames_scale = (settings_file['frames_scale'])
-frames_skip_steps = (settings_file['frames_skip_steps'])
-perlin_init = (settings_file['perlin_init'])
-perlin_mode = (settings_file['perlin_mode'])
-skip_augs = (settings_file['skip_augs'])
-randomize_class = (settings_file['randomize_class'])
-clip_denoised = (settings_file['clip_denoised'])
-clamp_grad = (settings_file['clamp_grad'])
-clamp_max = (settings_file['clamp_max'])
-set_seed = (settings_file['set_seed'])
-fuzzy_prompt = (settings_file['fuzzy_prompt'])
-rand_mag = (settings_file['rand_mag'])
-eta = (settings_file['eta'])
-width_height_scale = (settings_file['width_height_scale'])
-width_height = [(settings_file['width'] * settings_file['width_height_scale']),
-                (settings_file['height'] * settings_file['width_height_scale'])
-                ]
-diffusion_model = (settings_file['diffusion_model'])
-use_secondary_model = (settings_file['use_secondary_model'])
-steps = (settings_file['steps'])
-diffusion_steps = (settings_file['diffusion_steps'])
-ViTB32 = (settings_file['ViTB32'])
-ViTB16 = (settings_file['ViTB16'])
-ViTL14 = (settings_file['ViTL14'])
-RN101 = (settings_file['RN101'])
-RN50 = (settings_file['RN50'])
-RN50x4 = (settings_file['RN50x4'])
-RN50x16 = (settings_file['RN50x16'])
-RN50x64 = (settings_file['RN50x64'])
-SLIPB16 = (settings_file['SLIPB16'])
-SLIPL16 = (settings_file['SLIPL16'])
-cut_overview = (settings_file['cut_overview'])
-cut_innercut = (settings_file['cut_innercut'])
-cut_ic_pow = (settings_file['cut_ic_pow'])
-cut_icgray_p = (settings_file['cut_icgray_p'])
-key_frames = (settings_file['key_frames'])
-angle = (settings_file['angle'])
-zoom = (settings_file['zoom'])
-translation_x = (settings_file['translation_x'])
-translation_y = (settings_file['translation_y'])
-video_init_path = (settings_file['video_init_path'])
-extract_nth_frame = (settings_file['extract_nth_frame'])
-stop_early = 0
-
-if ('stop_early' in settings_file):
-    stop_early = (settings_file['stop_early'])
 
 #Now override some depending on command line and maybe a special case
 if cl_args.output:
@@ -294,14 +486,133 @@ if cl_args.gui:
     gui = True
     import prdgui
 
-import torch
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-print('Using device:', device)
+if cl_args.geninit:
+    geninit = True
+    if cl_args.geninit > 0 and cl_args.geninit <= 100:
+        geninitamount = float(cl_args.geninit /
+                              100)  # turn it into a float percent
+        print(
+            f'GenInit mode enabled. A checkpoint image will be saved at {cl_args.geninit}% of steps.'
+        )
+    else:
+        geninitamount = 0.2
+        print(
+            f'GenInit mode enabled. Provided number was out of bounds, so using {geninitamount} of steps instead.'
+        )
+else:
+    geninit = False
 
-if torch.cuda.get_device_capability(device) == (8,
-                                                0):  ## A100 fix thanks to Emad
-    print('Disabling CUDNN for A100 gpu', file=sys.stderr)
-    torch.backends.cudnn.enabled = False
+if cl_args.useinit:
+    if skip_steps == 0:
+        skip_steps = (
+            int(steps * 0.33)
+        )  # don't change skip_steps if the settings file specified one
+    if path.exists(f'{cl_args.useinit}'):
+        useinit = True
+        init_image = cl_args.useinit
+        print(
+            f'UseInit mode is using {cl_args.useinit} and starting at {skip_steps}.'
+        )
+    else:
+        init_image = 'geninit.png'
+        if path.exists(init_image):
+            print(
+                f'UseInit mode is using {init_image} and starting at {skip_steps}.'
+            )
+            useinit = True
+        else:
+            print('No init image found. Uneinit mode canceled.')
+            useinit = False
+else:
+    useinit = False
+
+#Automatic Eta based on steps
+if eta == 'auto':
+    maxetasteps = 315
+    minetasteps = 50
+    maxeta = 1.0
+    mineta = 0.0
+    if steps > maxetasteps: eta = maxeta
+    elif steps < minetasteps: eta = mineta
+    else:
+        stepsrange = (maxetasteps - minetasteps)
+        newrange = (maxeta - mineta)
+        eta = (((steps - minetasteps) * newrange) / stepsrange) + mineta
+        eta = round(eta, 2)
+        print(f'Eta set automatically to: {eta}')
+
+#Automatic clamp_max based on steps
+if clamp_max == 'auto':
+    if steps <= 35: clamp_max = 0.001
+    elif steps <= 75: clamp_max = 0.0125
+    elif steps <= 150: clamp_max = 0.02
+    elif steps <= 225: clamp_max = 0.035
+    elif steps <= 300: clamp_max = 0.05
+    elif steps <= 500: clamp_max = 0.075
+    else: clamp_max = 0.1
+    print(f'Clamp_max automatically set to {clamp_max}')
+
+#Automatic clip_guidance_scale based on overall resolution
+if clip_guidance_scale == 'auto':
+    res = width_height[0] * width_height[1]  # total pixels
+    maxcgsres = 2000000
+    mincgsres = 250000
+    maxcgs = 50000
+    mincgs = 2500
+    if res > maxcgsres: clip_guidance_scale = maxcgs
+    elif res < mincgsres: clip_guidance_scale = mincgs
+    else:
+        resrange = (maxcgsres - mincgsres)
+        newrange = (maxcgs - mincgs)
+        clip_guidance_scale = ((
+            (res - mincgsres) * newrange) / resrange) + mincgs
+        clip_guidance_scale = round(clip_guidance_scale)
+    print(f'clip_guidance_scale set automatically to: {clip_guidance_scale}')
+
+# List of artists for random artist support
+artists = []
+with open('artists.txt', encoding="utf-8") as f:
+    for line in f:
+        artists.append(line.strip())
+
+for prompts in text_prompts["0"]:
+    if "_artist" in prompts:
+        while "_artist_" in prompts:
+            prompts = prompts.replace("_artist_", random.choice(artists), 1)
+        text_prompts["0"] = [prompts]
+        print('Replaced _artist_ with random artist(s).')
+        print(f'New prompt is: {text_prompts}')
+
+import torch
+
+# Decide if we're using CPU or GPU, with appropriate settings depending...
+if cl_args.cpu or not torch.cuda.is_available():
+    DEVICE = torch.device('cpu')
+    device = DEVICE
+    fp16_mode = False
+    cores = os.cpu_count()
+    if cl_args.cpu == 0:
+        print(
+            f'No thread count specified. Using detected {cores} cores for CPU mode.'
+        )
+    elif cl_args.cpu > cores:
+        print(
+            f'Too many threads specified. Using detected {cores} cores for CPU mode.'
+        )
+    else:
+        cores = int(cl_args.cpu)
+        print(f'Using {cores} cores for CPU mode.')
+    torch.set_num_threads(cores)
+else:
+    DEVICE = torch.device(f'cuda:{cl_args.cuda}')
+    device = DEVICE
+    fp16_mode = True
+    if torch.cuda.get_device_capability(device) == (
+            8, 0):  ## A100 fix thanks to Emad
+        print('Disabling CUDNN for A100 gpu', file=sys.stderr)
+        torch.backends.cudnn.enabled = False
+
+print('Using device:', device)
 
 #@title 2.2 Define necessary functions
 
@@ -313,12 +624,6 @@ def ease(num, t):
     end = num[1]
     power = num[2]
     return start + pow(t, power) * (end - start)
-
-
-def save_tensor_as_image(tensor, filename):
-    #tensor = tensor.cpu().numpy()
-    #cv2.imwrite(filename, tensor)
-    TF.to_pil_image(tensor.clamp(0, 1).squeeze(0)).save(filename, quality=99)
 
 
 def interp(t):
@@ -398,6 +703,8 @@ def regen_perlin():
 
 
 def fetch(url_or_path):
+    print(f'Fetching {str(url_or_path)}')
+    print(f'This might take a while... please wait.')
     if str(url_or_path).startswith('http://') or str(url_or_path).startswith(
             'https://'):
         r = requests.get(url_or_path)
@@ -560,7 +867,7 @@ class MakeCutoutsDango(nn.Module):
                 T.Lambda(lambda x: x + torch.randn_like(x) * 0.01),
                 # T.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
             ])
-        elif args.animation_mode == '2D':
+        elif args.animation_mode == '2D' or args.animation_mode == '3D':
             self.augs = T.Compose([
                 T.RandomHorizontalFlip(p=0.4),
                 T.Lambda(lambda x: x + torch.randn_like(x) * 0.01),
@@ -656,8 +963,6 @@ def do_run():
     seed = args.seed
     print(range(args.start_frame, args.max_frames))
     for frame_num in range(args.start_frame, args.max_frames):
-        print(f'Frame: {frame_num}')
-
         if stop_on_next_loop:
             break
 
@@ -727,7 +1032,7 @@ def do_run():
             np.random.seed(seed)
             random.seed(seed)
             torch.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
+            #torch.cuda.manual_seed_all(seed) # jason -- commented this out because the above handles it and is device agnostic
             torch.backends.cudnn.deterministic = True
 
         target_embeds, weights = [], []
@@ -751,14 +1056,10 @@ def do_run():
 
         print(f'Frame Prompt: {frame_prompt}')
 
+        prev_sample_prompt = []
         model_stats = []
 
-        if (type(frame_prompt) is list):
-            frame_prompt = {"0": frame_prompt}
-
-        prev_sample_prompt = []
-
-        def do_weights(s, additional_prompts=[], magnitude_multiplier=1):
+        def do_weights(s):
             #print(" do_weights")
             nonlocal model_stats, prev_sample_prompt
             sample_prompt = []
@@ -788,23 +1089,6 @@ def do_run():
                 model_stat["clip_model"] = clip_model
 
                 for prompt in sample_prompt:
-                    txt, weight = parse_prompt(prompt)
-                    weight *= magnitude_multiplier
-                    txt = clip_model.encode_text(
-                        clip.tokenize(prompt).to(device)).float()
-
-                    if args.fuzzy_prompt:
-                        for i in range(25):
-                            model_stat["target_embeds"].append(
-                                (txt + torch.randn(txt.shape).cuda() *
-                                 args.rand_mag).clamp(0, 1))
-                            model_stat["weights"].append(weight)
-                    else:
-                        model_stat["target_embeds"].append(txt)
-                        model_stat["weights"].append(weight)
-
-                for prompt in additional_prompts:
-                    # Same as above, except not affected by magnitude
                     txt, weight = parse_prompt(prompt)
                     txt = clip_model.encode_text(
                         clip.tokenize(prompt).to(device)).float()
@@ -994,18 +1278,20 @@ def do_run():
                     clamp_max = args.clamp_max
 
                 #print(f"{timestep}: {clamp_max}")
-                return grad * magnitude.clamp(max=clamp_max) / magnitude
+                return grad * magnitude.clamp(
+                    max=args.clamp_max
+                ) / magnitude  #min=-0.02, min=-clamp_max,
             return grad
 
-        if model_config['timestep_respacing'].startswith('ddim'):
+        if args.sampling_mode == 'ddim':
             sample_fn = diffusion.ddim_sample_loop_progressive
         else:
-            sample_fn = diffusion.p_sample_loop_progressive
+            sample_fn = diffusion.plms_sample_loop_progressive
 
         image_display = Output()
         for i in range(args.n_batches):
             if args.animation_mode == 'None':
-                display.clear_output(wait=True)
+                #display.clear_output(wait=True)
                 batchBar = tqdm(range(args.n_batches), desc="Batches")
                 batchBar.n = i
                 batchBar.refresh()
@@ -1021,7 +1307,7 @@ def do_run():
 
             def do_sample_fn(_init_image, _skip):
                 print(f" do_sample_fn {_skip}")
-                if model_config['timestep_respacing'].startswith('ddim'):
+                if args.sampling_mode == 'ddim':
                     samples = sample_fn(
                         model,
                         (batch_size, 3, args.side_y, args.side_x),
@@ -1029,8 +1315,8 @@ def do_run():
                         model_kwargs={},
                         cond_fn=cond_fn,
                         progress=True,
-                        skip_timesteps=_skip,
-                        init_image=_init_image,
+                        skip_timesteps=skip_steps,
+                        init_image=init,
                         randomize_class=randomize_class,
                         eta=eta,
                     )
@@ -1042,9 +1328,10 @@ def do_run():
                         model_kwargs={},
                         cond_fn=cond_fn,
                         progress=True,
-                        skip_timesteps=_skip,
-                        init_image=_init_image,
+                        skip_timesteps=skip_steps,
+                        init_image=init,
                         randomize_class=randomize_class,
+                        order=2,
                     )
 
                 return samples
@@ -1272,6 +1559,7 @@ def save_settings():
         'diffusion_model': diffusion_model,
         'use_secondary_model': use_secondary_model,
         'diffusion_steps': diffusion_steps,
+        'sampling_mode': sampling_mode,
         'ViTB32': ViTB32,
         'ViTB16': ViTB16,
         'ViTL14': ViTL14,
@@ -1297,7 +1585,8 @@ def save_settings():
     }
     # print('Settings:', setting_list)
     with open(f"{batchFolder}/{batch_name}({batchNum})_settings.json",
-              "w+") as f:  #save settings
+              "w+",
+              encoding="utf-8") as f:  #save settings
         json.dump(setting_list, f, ensure_ascii=False, indent=4)
 
 
@@ -1726,16 +2015,20 @@ def download_models(mode):
         url_conf = 'https://heibox.uni-heidelberg.de/f/31a76b13ea27482981b4/?dl=1'
         url_ckpt = 'https://heibox.uni-heidelberg.de/f/578df07c8fc04ffbadf3/?dl=1'
 
+        if not os.path.isdir(f'{model_path}/superres'):
+            os.makedirs(f'{model_path}/superres')
         path_conf = f'{model_path}/superres/project.yaml'
         path_ckpt = f'{model_path}/superres/last.ckpt'
 
-        if (not exists(path_conf)):
-            download_url(url_conf, path_conf)
-            path_conf = path_conf + '/?dl=1'  # fix it
-        if (not exists(path_ckpt)):
-            download_url(url_ckpt, path_ckpt)
-            path_ckpt = path_ckpt + '/?dl=1'  # fix it
+        if os.path.exists(path_conf) and os.path.exists(path_ckpt):
+            print("Superres models already downloaded, skipping...")
+        else:
+            print("Superres models downloading, this might take a while...")
+            urllib.request.urlretrieve(url_conf, path_conf)
+            urllib.request.urlretrieve(url_ckpt, path_ckpt)
 
+        #path_conf = path_conf + '/?dl=1' # fix it
+        #path_ckpt = path_ckpt + '/?dl=1' # fix it
         return path_conf, path_ckpt
 
     else:
@@ -1749,7 +2042,8 @@ def load_model_from_config(config, ckpt):
     sd = pl_sd["state_dict"]
     model = instantiate_from_config(config.model)
     m, u = model.load_state_dict(sd, strict=False)
-    model.cuda()
+    #if not cl_args.cpu: model.cuda() #Can't do CUDA stuff when we're running on CPU
+    model.to(device)
     model.eval()
     return {"model": model}, global_step
 
@@ -2159,9 +2453,9 @@ use_checkpoint = True  #@param {type: 'boolean'}
 #RN50 = True #@param{type:"boolean"} Low RAM requirement, medium accuracy
 #RN50x4 = True #@param{type:"boolean"} Medium RAM requirement, high accuracy
 #RN50x16 = False #@param{type:"boolean"} High RAM requirement, high accuracy
-SLIPB16 = False  # param{type:"boolean"}
-SLIPL16 = False  # param{type:"boolean"}
-
+#SLIPB16 = False # param{type:"boolean"}
+#SLIPL16 = False # param{type:"boolean"}
+other_sampling_mode = 'bicubic'
 #@markdown If you're having issues with model downloads, check this to compare SHA's:
 check_model_SHA = False  #@param{type:"boolean"}
 
@@ -2199,6 +2493,7 @@ if diffusion_model == '256x256_diffusion_uncond':
             '256 Model already downloaded, check check_model_SHA if the file is corrupt'
         )
     else:
+        print("256 Model downloading, this might take a while...")
         #!wget --continue {model_256_link} -P {model_path}
         urllib.request.urlretrieve(model_256_link, model_256_path)
         model_256_downloaded = True
@@ -2225,6 +2520,7 @@ elif diffusion_model == '512x512_diffusion_uncond_finetune_008100':
     else:
         #!wget --continue {model_512_link} -P {model_path}
         print(model_path)
+        print("512 Model downloading, this might take a while...")
         urllib.request.urlretrieve(model_512_link, model_512_path)
         model_512_downloaded = True
 
@@ -2252,6 +2548,7 @@ if use_secondary_model == True:
         )
     else:
         #!wget --continue {model_secondary_link} -P {model_path}
+        print('Secondary Model downloading, this might take a while...')
         urllib.request.urlretrieve(model_secondary_link, model_secondary_path)
         model_secondary_downloaded = True
 
@@ -2271,7 +2568,7 @@ if diffusion_model == '512x512_diffusion_uncond_finetune_008100':
         'num_res_blocks': 2,
         'resblock_updown': True,
         'use_checkpoint': use_checkpoint,
-        'use_fp16': True,
+        'use_fp16': fp16_mode,
         'use_scale_shift_norm': True,
     })
 elif diffusion_model == '256x256_diffusion_uncond':
@@ -2289,19 +2586,18 @@ elif diffusion_model == '256x256_diffusion_uncond':
         'num_res_blocks': 2,
         'resblock_updown': True,
         'use_checkpoint': use_checkpoint,
-        'use_fp16': True,
+        'use_fp16': fp16_mode,
         'use_scale_shift_norm': True,
     })
 
-secondary_model_ver = 2
 model_default = model_config['image_size']
 
-if secondary_model_ver == 2:
+if use_secondary_model:
     secondary_model = SecondaryDiffusionImageNet2()
     secondary_model.load_state_dict(
         torch.load(f'{model_path}/secondary_model_imagenet_2.pth',
                    map_location='cpu'))
-secondary_model.eval().requires_grad_(False).to(device)
+    secondary_model.eval().requires_grad_(False).to(device)
 
 clip_models = []
 if ViTB32 is True:
@@ -2437,8 +2733,12 @@ if animation_mode == "Video Input":
     except:
         print('')
     vf = f'"select=not(mod(n\,{extract_nth_frame}))"'
-    #TODO remove or fix animation stuff
-    #!ffmpeg -i {video_init_path} -vf {vf} -vsync vfr -q:v 2 -loglevel error -stats {videoFramesFolder}/%04d.jpg
+    subprocess.run([
+        'ffmpeg', '-i', f'{video_init_path}', '-vf', f'{vf}', '-vsync', 'vfr',
+        '-q:v', '2', '-loglevel', 'error', '-stats',
+        f'{videoFramesFolder}/%04d.jpg'
+    ],
+                   stdout=subprocess.PIPE).stdout.decode('utf-8')
 
 #@markdown ---
 
@@ -2647,8 +2947,11 @@ else:
 """
 
 #@markdown ####**Saving:**
-
-intermediate_saves = 0  #@param{type: 'raw'}
+#intermediate_saves = 0#@param{type: 'raw'}
+if geninit:
+    intermediate_saves = [
+        (steps * geninitamount)
+    ]  # Save a checkpoint at 20% for use as a later init image
 intermediates_in_subfolder = True  #@param{type: 'boolean'}
 #@markdown Intermediate steps will save a copy at your specified intervals. You can either format it as a single integer or a list of specific steps
 
@@ -2812,6 +3115,7 @@ args = {
     'batch_size': batch_size,
     'batch_name': batch_name,
     'steps': steps,
+    'sampling_mode': sampling_mode,
     'width_height': width_height,
     'clip_guidance_scale': clip_guidance_scale,
     'tv_scale': tv_scale,

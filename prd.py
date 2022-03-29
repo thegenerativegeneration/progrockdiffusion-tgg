@@ -1293,6 +1293,7 @@ def save_settings():
         'translation_y': translation_y,
         'video_init_path': video_init_path,
         'extract_nth_frame': extract_nth_frame,
+        'stop_early': stop_early,
     }
     # print('Settings:', setting_list)
     with open(f"{batchFolder}/{batch_name}({batchNum})_settings.json",
@@ -2865,6 +2866,7 @@ args = {
     'clip_denoised': clip_denoised,
     'fuzzy_prompt': fuzzy_prompt,
     'rand_mag': rand_mag,
+    'stop_early': stop_early,
 }
 
 args = SimpleNamespace(**args)

@@ -244,7 +244,8 @@ my_parser = argparse.ArgumentParser(
     epilog=example_text,
     formatter_class=argparse.RawDescriptionHelpFormatter)
 my_parser.add_argument('--gui',
-                       action=argparse.BooleanOptionalAction,
+                       action='store_true',
+                       required=False,
                        help='Use the PyQt5 GUI')
 my_parser.add_argument(
     '-s',

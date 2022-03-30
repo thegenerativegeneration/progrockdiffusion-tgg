@@ -1059,6 +1059,9 @@ def do_run():
         else:
             image_prompt = []
 
+        if (type(frame_prompt) is list):
+            frame_prompt = {"0": frame_prompt}
+
         print(f'Frame Prompt: {frame_prompt}')
 
         prev_sample_prompt = []

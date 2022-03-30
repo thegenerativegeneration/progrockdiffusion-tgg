@@ -10,7 +10,6 @@
     "display_rate": 50,
     "width": 832,
     "height": 512,
-    "width_height_scale": 1,
     "set_seed": "random_seed",
     "image_prompts": {},
     "clip_guidance_scale": "auto",
@@ -47,11 +46,6 @@
     "RN50x4": false,
     "RN50x16": false,
     "RN50x64": false,
-<<<<<<< HEAD
-    "SLIPB16": false,
-    "SLIPL16": false,
-=======
->>>>>>> formatted
     "cut_overview": "[12]*400+[4]*600",
     "cut_innercut": "[4]*400+[12]*600",
     "cut_ic_pow": 1,
@@ -63,9 +57,5 @@
     "translation_y": "0: (0)",
     "video_init_path": "/content/training.mp4",
     "extract_nth_frame": 2,
-<<<<<<< HEAD
-    "width_height_scale": 1
-=======
     "intermediate_saves": 0
->>>>>>> formatted
 }

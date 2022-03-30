@@ -175,6 +175,7 @@ fuzzy_prompt = False
 rand_mag = 0.05
 eta = "auto"
 width_height = [832, 512]
+width_height_scale = 1
 diffusion_model = "512x512_diffusion_uncond_finetune_008100"
 use_secondary_model = True
 steps = 250
@@ -376,7 +377,7 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'skip_steps'):
                 skip_steps = (settings_file['skip_steps'])
             if is_json_key_present(settings_file, 'stop_early'):
-                skip_steps = (settings_file['stop_early'])
+                stop_early = (settings_file['stop_early'])
             if is_json_key_present(settings_file, 'frames_scale'):
                 frames_scale = (settings_file['frames_scale'])
             if is_json_key_present(settings_file, 'frames_skip_steps'):
@@ -467,6 +468,10 @@ for setting_arg in cl_args.settings:
               ' - Check formatting.')
         print(e)
         quit()
+
+width_height = [
+    width_height[0] * width_height_scale, width_height[1] * width_height_scale
+]
 
 #Now override some depending on command line and maybe a special case
 if cl_args.output:
@@ -1140,6 +1145,8 @@ def do_run():
 
         initial_weights = False
 
+        print(f'skip steps: {skip_steps}')
+
         if (skip_steps > 0):
             for i in range(skip_steps, 0, -1):
                 if (str(i) in frame_prompt.keys()):
@@ -1480,8 +1487,7 @@ def do_run():
                         #if (j < 40 and len(adjustment_prompt) > 0):
                         #    magnitude_multiplier *= (j + 1) / 40
 
-                    do_weights(steps - cur_t - 1, adjustment_prompt,
-                               magnitude_multiplier)
+                    do_weights(steps - cur_t - 1)
 
                     image = sample['pred_xstart'][0]
                     image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
@@ -2632,7 +2638,7 @@ if RN101 is True:
     clip_models.append(
         clip.load('RN101',
                   jit=False)[0].eval().requires_grad_(False).to(device))
-
+'''
 if SLIPB16:
     SLIPB16model = SLIP_VITB16(ssl_mlp_dim=4096, ssl_emb_dim=256)
     if not os.path.exists(f'{model_path}/slip_base_100ep.pt'):
@@ -2666,6 +2672,7 @@ if SLIPL16:
     SLIPL16model.requires_grad_(False).eval().to(device)
 
     clip_models.append(SLIPL16model)
+'''
 
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])

@@ -728,14 +728,14 @@ def read_image_workaround(path):
     return cv2.cvtColor(im_tmp, cv2.COLOR_BGR2RGB)
 
 
-def parse_prompt(prompt):
+def parse_prompt(prompt, vars={}):
     if prompt.startswith('http://') or prompt.startswith('https://'):
         vals = prompt.rsplit(':', 2)
         vals = [vals[0] + ':' + vals[1], *vals[2:]]
     else:
         vals = prompt.rsplit(':', 1)
     vals = vals + ['', '1'][len(vals):]
-    return vals[0], float(vals[1])
+    return vals[0], float(numexpr.evaluate(vals[1], local_dict=vars))
 
 
 def sinc(x):
@@ -1097,7 +1097,7 @@ def do_run():
                 model_stat["clip_model"] = clip_model
 
                 for prompt in sample_prompt:
-                    txt, weight = parse_prompt(prompt)
+                    txt, weight = parse_prompt(prompt, {'s': s})
                     txt = clip_model.encode_text(
                         clip.tokenize(prompt).to(device)).float()
 
@@ -1117,7 +1117,7 @@ def do_run():
                         cutn,
                         skip_augs=skip_augs)
                     for prompt in image_prompt:
-                        path, weight = parse_prompt(prompt)
+                        path, weight = parse_prompt(prompt, {'s': s})
                         weight *= magnitude_multiplier
                         img = Image.open(fetch(path)).convert('RGB')
                         img = TF.resize(img, min(side_x, side_y, *img.size),
@@ -1325,7 +1325,7 @@ def do_run():
                         model_kwargs={},
                         cond_fn=cond_fn,
                         progress=True,
-                        skip_timesteps=skip_steps,
+                        skip_timesteps=_skip,
                         init_image=init,
                         randomize_class=randomize_class,
                         eta=eta,
@@ -1338,7 +1338,7 @@ def do_run():
                         model_kwargs={},
                         cond_fn=cond_fn,
                         progress=True,
-                        skip_timesteps=skip_steps,
+                        skip_timesteps=_skip,
                         init_image=init,
                         randomize_class=randomize_class,
                         order=2,
@@ -1497,21 +1497,41 @@ def do_run():
                     stat = ImageStat.Stat(image)
 
                     brightness = sum(stat.mean) / len(stat.mean)
+                    contrast = sum(stat.stddev) / len(stat.stddev)
+
                     s = steps - cur_t
+
+                    print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
                     if (brightness > 180):
                         print(" Brightness over threshold")
                         filter = ImageEnhance.Brightness(image)
-                        image = filter.enhance(0.7)
+                        image = filter.enhance(0.85)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
                             2).sub(1)
                         break
 
-                    if (brightness < 90):
+                    if (brightness < 50):
                         print(" Brightness below threshold")
                         filter = ImageEnhance.Brightness(image)
-                        image = filter.enhance(1.3)
+                        image = filter.enhance(1.15)
+                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
+                            2).sub(1)
+                        break
+
+                    if (s > 30 and contrast > 82):
+                        print(" Contrast over threshold")
+                        filter = ImageEnhance.Contrast(image)
+                        image = filter.enhance(0.85)
+                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
+                            2).sub(1)
+                        break
+
+                    if (s > 30 and contrast < 30):
+                        print(" Contrast below threshold")
+                        filter = ImageEnhance.Contrast(image)
+                        image = filter.enhance(1.15)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
                             2).sub(1)
                         break

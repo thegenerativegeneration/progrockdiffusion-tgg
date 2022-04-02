@@ -202,6 +202,22 @@ video_init_path = "/content/training.mp4"
 extract_nth_frame = 2
 intermediate_saves = 0
 stop_early = 0
+high_contrast_threshold = 80
+high_contrast_adjust_amount = 0.85
+high_contrast_start = 20
+high_contrast_adjust = True
+low_contrast_threshold = 20
+low_contrast_adjust_amount = 2
+low_contrast_start = 20
+low_contrast_adjust = True
+high_brightness_threshold = 180
+high_brightness_adjust_amount = 0.85
+high_brightness_start = 0
+high_brightness_adjust = True
+low_brightness_threshold = 40
+low_brightness_adjust_amount = 1.15
+low_brightness_start = 0
+low_brightness_adjust = True
 
 # Command Line parse
 import argparse
@@ -464,6 +480,54 @@ for setting_arg in cl_args.settings:
                 extract_nth_frame = (settings_file['extract_nth_frame'])
             if is_json_key_present(settings_file, 'intermediate_saves'):
                 intermediate_saves = (settings_file['intermediate_saves'])
+            if is_json_key_present(settings_file, 'high_contrast_threshold'):
+                high_contrast_threshold = (
+                    settings_file['high_contrast_threshold'])
+            if is_json_key_present(settings_file,
+                                   'high_contrast_adjust_amount'):
+                high_contrast_adjust_amount = (
+                    settings_file['high_contrast_adjust_amount'])
+            if is_json_key_present(settings_file, 'high_contrast_start'):
+                high_contrast_start = (settings_file['high_contrast_start'])
+            if is_json_key_present(settings_file, 'high_contrast_adjust'):
+                high_contrast_adjust = (settings_file['high_contrast_adjust'])
+            if is_json_key_present(settings_file, 'low_contrast_threshold'):
+                low_contrast_threshold = (
+                    settings_file['low_contrast_threshold'])
+            if is_json_key_present(settings_file,
+                                   'low_contrast_adjust_amount'):
+                low_contrast_adjust_amount = (
+                    settings_file['low_contrast_adjust_amount'])
+            if is_json_key_present(settings_file, 'low_contrast_start'):
+                low_contrast_start = (settings_file['low_contrast_start'])
+            if is_json_key_present(settings_file, 'low_contrast_adjust'):
+                low_contrast_adjust = (settings_file['low_contrast_adjust'])
+            if is_json_key_present(settings_file, 'high_brightness_threshold'):
+                high_brightness_threshold = (
+                    settings_file['high_brightness_threshold'])
+            if is_json_key_present(settings_file,
+                                   'high_brightness_adjust_amount'):
+                high_brightness_adjust_amount = (
+                    settings_file['high_brightness_adjust_amount'])
+            if is_json_key_present(settings_file, 'high_brightness_start'):
+                high_brightness_start = (
+                    settings_file['high_brightness_start'])
+            if is_json_key_present(settings_file, 'high_brightness_adjust'):
+                high_brightness_adjust = (
+                    settings_file['high_brightness_adjust'])
+            if is_json_key_present(settings_file, 'low_brightness_threshold'):
+                low_brightness_threshold = (
+                    settings_file['low_brightness_threshold'])
+            if is_json_key_present(settings_file,
+                                   'low_brightness_adjust_amount'):
+                low_brightness_adjust_amount = (
+                    settings_file['low_brightness_adjust_amount'])
+            if is_json_key_present(settings_file, 'low_brightness_start'):
+                low_brightness_start = (settings_file['low_brightness_start'])
+            if is_json_key_present(settings_file, 'low_brightness_adjust'):
+                low_brightness_adjust = (
+                    settings_file['low_brightness_adjust'])
+
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +
               ' - Check formatting.')
@@ -1502,37 +1566,41 @@ def do_run():
 
                     s = steps - cur_t
 
-                    print(f" Contrast at {s}: {contrast}")
+                    #print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
-                    if (brightness > 180):
+                    if (high_brightness_adjust and s > high_brightness_start
+                            and brightness > high_brightness_threshold):
                         print(" Brightness over threshold")
                         filter = ImageEnhance.Brightness(image)
-                        image = filter.enhance(0.85)
+                        image = filter.enhance(high_brightness_adjust_amount)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
                             2).sub(1)
                         break
 
-                    if (brightness < 50):
+                    if (low_brightness_adjust and s > low_brightness_start
+                            and brightness < low_brightness_threshold):
                         print(" Brightness below threshold")
                         filter = ImageEnhance.Brightness(image)
-                        image = filter.enhance(1.15)
+                        image = filter.enhance(low_brightness_adjust_amount)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
                             2).sub(1)
                         break
 
-                    if (s > 30 and contrast > 82):
+                    if (high_contrast_adjust and s > high_contrast_start
+                            and contrast > high_contrast_threshold):
                         print(" Contrast over threshold")
                         filter = ImageEnhance.Contrast(image)
-                        image = filter.enhance(0.85)
+                        image = filter.enhance(high_contrast_adjust_amount)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
                             2).sub(1)
                         break
 
-                    if (s > 30 and contrast < 30):
+                    if (low_contrast_adjust and s > low_contrast_start
+                            and contrast < low_contrast_threshold):
                         print(" Contrast below threshold")
                         filter = ImageEnhance.Contrast(image)
-                        image = filter.enhance(1.15)
+                        image = filter.enhance(low_contrast_adjust_amount)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
                             2).sub(1)
                         break
@@ -1612,6 +1680,22 @@ def save_settings():
         'video_init_path': video_init_path,
         'extract_nth_frame': extract_nth_frame,
         'stop_early': stop_early,
+        'high_contrast_threshold': high_contrast_threshold,
+        'high_contrast_adjust_amount': high_contrast_adjust_amount,
+        'high_contrast_start': high_contrast_start,
+        'high_contrast_adjust': high_contrast_adjust,
+        'low_contrast_threshold': low_contrast_threshold,
+        'low_contrast_adjust_amount': low_contrast_adjust_amount,
+        'low_contrast_start': low_contrast_start,
+        'low_contrast_adjust': low_contrast_adjust,
+        'high_brightness_threshold': high_brightness_threshold,
+        'high_brightness_adjust_amount': high_brightness_adjust_amount,
+        'high_brightness_start': high_brightness_start,
+        'high_brightness_adjust': high_brightness_adjust,
+        'low_brightness_threshold': low_brightness_threshold,
+        'low_brightness_adjust_amount': low_brightness_adjust_amount,
+        'low_brightness_start': low_brightness_start,
+        'low_brightness_adjust': low_brightness_adjust,
     }
     # print('Settings:', setting_list)
     with open(f"{batchFolder}/{batch_name}({batchNum})_settings.json",

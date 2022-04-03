@@ -97,6 +97,7 @@ import timm
 from IPython import display
 import lpips
 from PIL import Image, ImageOps, ImageStat, ImageEnhance
+from PIL.PngImagePlugin import PngInfo
 import requests
 from glob import glob
 import json5 as json
@@ -201,6 +202,7 @@ translation_y = "0: (0)"
 video_init_path = "/content/training.mp4"
 extract_nth_frame = 2
 intermediate_saves = 0
+add_metadata = True
 stop_early = 0
 high_contrast_threshold = 80
 high_contrast_adjust_amount = 0.85
@@ -251,6 +253,9 @@ To use a checkpoint image at 20% steps add -u or --useinit:
 
 To specify which CUDA device to use (advanced) by device ID (default is 0):
  {python_example} prd.py --cuda 1
+
+To HIDE the settings that get added to your output PNG's metadata, use:
+ {python_example} prd.py --hidemetadata
 
 '''
 
@@ -320,6 +325,11 @@ my_parser.add_argument('--cuda',
                        required=False,
                        default='0',
                        help='Which GPU to use. Default is 0.')
+my_parser.add_argument(
+    '--hidemetadata',
+    action='store_true',
+    required=False,
+    help='Will prevent settings from being added to the output PNG file')
 
 cl_args = my_parser.parse_args()
 
@@ -550,6 +560,12 @@ if cl_args.prompt:
 if cl_args.ignoreseed:
     set_seed = 'random_seed'
     print(f'Using a random seed instead of the one provided by the JSON file.')
+
+if cl_args.hidemetadata:
+    add_metadata = False
+    print(
+        f'Hide metadata flag is ON, settings will not be stored in the PNG output.'
+    )
 
 gui = False
 if cl_args.gui:
@@ -1169,7 +1185,7 @@ def do_run():
                     if args.fuzzy_prompt:
                         for i in range(25):
                             model_stat["target_embeds"].append(
-                                (txt + torch.randn(txt.shape).cuda() *
+                                (txt + torch.randn(txt.shape).to(device) *
                                  args.rand_mag).clamp(0, 1))
                             model_stat["weights"].append(weight)
                     else:
@@ -1194,7 +1210,7 @@ def do_run():
                         if fuzzy_prompt:
                             for i in range(25):
                                 model_stat["target_embeds"].append(
-                                    (embed + torch.randn(embed.shape).cuda() *
+                                    (embed + torch.randn(embed.shape).to(device) *
                                      rand_mag).clamp(0, 1))
                                 weights.extend([weight / cutn] * cutn)
                         else:
@@ -1381,7 +1397,7 @@ def do_run():
                 init = regen_perlin()
 
             def do_sample_fn(_init_image, _skip):
-                print(f" do_sample_fn {_skip}")
+                #print(f" do_sample_fn {_skip}")
                 if args.sampling_mode == 'ddim':
                     samples = sample_fn(
                         model,
@@ -1439,7 +1455,7 @@ def do_run():
                                     #if intermediates are saved to the subfolder, don't append a step or percentage to the name
                                     if cur_t == -1 and args.intermediates_in_subfolder is True:
                                         save_num = f'{frame_num:04}' if animation_mode != "None" else i
-                                        filename = f'{args.batch_name}({args.batchNum})_{save_num}.png'
+                                        filename = f'{args.batch_name}_{args.batchNum}_{save_num}.png'
                                     else:
                                         #If we're working with percentages, append it
                                         if args.steps_per_checkpoint is not None:
@@ -1449,6 +1465,30 @@ def do_run():
                                             filename = f'{args.batch_name}({args.batchNum})_{i:04}-{j:03}.png'
                                 image = TF.to_pil_image(
                                     image.add(1).div(2).clamp(0, 1))
+                                #add some key metadata to the PNG if the commandline allows it
+                                metadata = PngInfo()
+                                if add_metadata == True:
+                                    metadata.add_text("prompt", str(text_prompts))
+                                    metadata.add_text("seed", str(seed))
+                                    metadata.add_text("steps", str(steps))
+                                    metadata.add_text("init_image",
+                                                      str(init_image))
+                                    metadata.add_text("skip_steps",
+                                                      str(skip_steps))
+                                    metadata.add_text("clip_guidance_scale",
+                                                      str(clip_guidance_scale))
+                                    metadata.add_text("tv_scale", str(tv_scale))
+                                    metadata.add_text("range_scale",
+                                                      str(range_scale))
+                                    metadata.add_text("sat_scale", str(sat_scale))
+                                    metadata.add_text("eta", str(eta))
+                                    metadata.add_text("clamp_max", str(clamp_max))
+                                    metadata.add_text("cut_overview",
+                                                      str(cut_overview))
+                                    metadata.add_text("cut_innercut",
+                                                      str(cut_innercut))
+                                    metadata.add_text("cut_ic_pow",
+                                                      str(cut_ic_pow))
 
                                 if j % args.display_rate == 0 or cur_t == -1:
                                     image.save('progress.png')
@@ -1470,6 +1510,10 @@ def do_run():
                                         else:
                                             image.save(
                                                 f'{batchFolder}/{filename}')
+                                    if geninit is True:
+                                        image.save('geninit.png')
+                                        raise KeyboardInterrupt
+
                                 if cur_t == -1:
                                     if frame_num == 0:
                                         save_settings()
@@ -1482,7 +1526,13 @@ def do_run():
                                                 f'{unsharpenFolder}/{filename}'
                                             )
                                     else:
-                                        image.save(f'{batchFolder}/{filename}')
+                                        image.save(f'{batchFolder}/{filename}',
+                                                   pnginfo=metadata)
+                                    print('Incrementing seed by one.')
+                                    seed = seed + 1
+                                    np.random.seed(seed)
+                                    random.seed(seed)
+                                    torch.manual_seed(seed)
                                     # if frame_num != args.max_frames-1:
                                     #   display.clear_output()
 
@@ -1571,7 +1621,7 @@ def do_run():
 
                     if (high_brightness_adjust and s > high_brightness_start
                             and brightness > high_brightness_threshold):
-                        print(" Brightness over threshold")
+                        print(" Brightness over threshold. Compensating! Total steps counter might change, it's okay...")
                         filter = ImageEnhance.Brightness(image)
                         image = filter.enhance(high_brightness_adjust_amount)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
@@ -1580,7 +1630,7 @@ def do_run():
 
                     if (low_brightness_adjust and s > low_brightness_start
                             and brightness < low_brightness_threshold):
-                        print(" Brightness below threshold")
+                        print(" Brightness below threshold. Compensating! Total steps counter might change, it's okay...")
                         filter = ImageEnhance.Brightness(image)
                         image = filter.enhance(low_brightness_adjust_amount)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
@@ -1589,7 +1639,7 @@ def do_run():
 
                     if (high_contrast_adjust and s > high_contrast_start
                             and contrast > high_contrast_threshold):
-                        print(" Contrast over threshold")
+                        print(" Contrast over threshold. Compensating! Total steps counter might change, it's okay...")
                         filter = ImageEnhance.Contrast(image)
                         image = filter.enhance(high_contrast_adjust_amount)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
@@ -1598,7 +1648,7 @@ def do_run():
 
                     if (low_contrast_adjust and s > low_contrast_start
                             and contrast < low_contrast_threshold):
-                        print(" Contrast below threshold")
+                        print(" Contrast below threshold. Compensating! Total steps counter might change, it's okay...")
                         filter = ImageEnhance.Contrast(image)
                         image = filter.enhance(low_contrast_adjust_amount)
                         init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
@@ -1666,8 +1716,8 @@ def save_settings():
         'RN50x4': RN50x4,
         'RN50x16': RN50x16,
         'RN50x64': RN50x64,
-        'SLIPB16': SLIPB16,
-        'SLIPL16': SLIPL16,
+        #'SLIPB16': SLIPB16,
+        #'SLIPL16': SLIPL16,
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
@@ -1698,7 +1748,7 @@ def save_settings():
         'low_brightness_adjust': low_brightness_adjust,
     }
     # print('Settings:', setting_list)
-    with open(f"{batchFolder}/{batch_name}({batchNum})_settings.json",
+    with open(f"{batchFolder}/{batch_name}_{batchNum}_settings.json",
               "w+",
               encoding="utf-8") as f:  #save settings
         json.dump(setting_list, f, ensure_ascii=False, indent=4)
@@ -2156,7 +2206,6 @@ def load_model_from_config(config, ckpt):
     sd = pl_sd["state_dict"]
     model = instantiate_from_config(config.model)
     m, u = model.load_state_dict(sd, strict=False)
-    #if not cl_args.cpu: model.cuda() #Can't do CUDA stuff when we're running on CPU
     model.to(device)
     model.eval()
     return {"model": model}, global_step

@@ -104,7 +104,7 @@ git clone https://github.com/CompVis/taming-transformers
 pip install -e ./CLIP
 pip install -e ./guided-diffusion
 pip install -e ./taming-transformers
-pip install lpips datetime timm
+pip install lpips datetime timm json5 numexpr
 ```
 ## Basic or GPU Accelerated PyTorch
 You defnitely should install the GPU version if you have an NVIDIA card. It's almost 30x faster.

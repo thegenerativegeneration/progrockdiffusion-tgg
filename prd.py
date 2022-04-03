@@ -2746,7 +2746,7 @@ if RN101 is True:
     clip_models.append(
         clip.load('RN101',
                   jit=False)[0].eval().requires_grad_(False).to(device))
-'''
+
 if SLIPB16:
     SLIPB16model = SLIP_VITB16(ssl_mlp_dim=4096, ssl_emb_dim=256)
     if not os.path.exists(f'{model_path}/slip_base_100ep.pt'):
@@ -2780,7 +2780,6 @@ if SLIPL16:
     SLIPL16model.requires_grad_(False).eval().to(device)
 
     clip_models.append(SLIPL16model)
-'''
 
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])

@@ -661,13 +661,24 @@ with open('artists.txt', encoding="utf-8") as f:
     for line in f:
         artists.append(line.strip())
 
-for prompts in text_prompts["0"]:
-    if "_artist" in prompts:
-        while "_artist_" in prompts:
-            prompts = prompts.replace("_artist_", random.choice(artists), 1)
-        text_prompts["0"] = [prompts]
-        print('Replaced _artist_ with random artist(s).')
-        print(f'New prompt is: {text_prompts}')
+for k, v in text_prompts.items():
+    if type(v) == list:
+        for prompts in v:
+            if "_artist_" in prompts:
+                while "_artist_" in prompts:
+                    prompts = prompts.replace("_artist_", random.choice(artists), 1)
+                text_prompts["0"] = [prompts]
+                print('Replaced _artist_ with random artist(s).')
+                print(f'New prompt is: {text_prompts}')
+    else: # to handle if the prompt is actually a multi-prompt. 
+        for kk, vv in v.items():
+            for prompts in vv:
+                if "_artist_" in prompts:
+                    while "_artist_" in prompts:
+                        prompts = prompts.replace("_artist_", random.choice(artists), 1)
+                    text_prompts["0"] = [prompts]
+                    print('Replaced _artist_ with random artist(s).')
+                    print(f'New prompt is: {text_prompts}')
 
 import torch
 
@@ -1619,41 +1630,42 @@ def do_run():
                     #print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
-                    if (high_brightness_adjust and s > high_brightness_start
-                            and brightness > high_brightness_threshold):
-                        print(" Brightness over threshold. Compensating! Total steps counter might change, it's okay...")
-                        filter = ImageEnhance.Brightness(image)
-                        image = filter.enhance(high_brightness_adjust_amount)
-                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                            2).sub(1)
-                        break
+                    if s % 10 == 0:
+                        if (high_brightness_adjust and s > high_brightness_start
+                                and brightness > high_brightness_threshold):
+                            print(" Brightness over threshold. Compensating! Total steps counter might change, it's okay...")
+                            filter = ImageEnhance.Brightness(image)
+                            image = filter.enhance(high_brightness_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
+                                2).sub(1)
+                            break
 
-                    if (low_brightness_adjust and s > low_brightness_start
-                            and brightness < low_brightness_threshold):
-                        print(" Brightness below threshold. Compensating! Total steps counter might change, it's okay...")
-                        filter = ImageEnhance.Brightness(image)
-                        image = filter.enhance(low_brightness_adjust_amount)
-                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                            2).sub(1)
-                        break
+                        if (low_brightness_adjust and s > low_brightness_start
+                                and brightness < low_brightness_threshold):
+                            print(" Brightness below threshold. Compensating! Total steps counter might change, it's okay...")
+                            filter = ImageEnhance.Brightness(image)
+                            image = filter.enhance(low_brightness_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
+                                2).sub(1)
+                            break
 
-                    if (high_contrast_adjust and s > high_contrast_start
-                            and contrast > high_contrast_threshold):
-                        print(" Contrast over threshold. Compensating! Total steps counter might change, it's okay...")
-                        filter = ImageEnhance.Contrast(image)
-                        image = filter.enhance(high_contrast_adjust_amount)
-                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                            2).sub(1)
-                        break
+                        if (high_contrast_adjust and s > high_contrast_start
+                                and contrast > high_contrast_threshold):
+                            print(" Contrast over threshold. Compensating! Total steps counter might change, it's okay...")
+                            filter = ImageEnhance.Contrast(image)
+                            image = filter.enhance(high_contrast_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
+                                2).sub(1)
+                            break
 
-                    if (low_contrast_adjust and s > low_contrast_start
-                            and contrast < low_contrast_threshold):
-                        print(" Contrast below threshold. Compensating! Total steps counter might change, it's okay...")
-                        filter = ImageEnhance.Contrast(image)
-                        image = filter.enhance(low_contrast_adjust_amount)
-                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                            2).sub(1)
-                        break
+                        if (low_contrast_adjust and s > low_contrast_start
+                                and contrast < low_contrast_threshold):
+                            print(" Contrast below threshold. Compensating! Total steps counter might change, it's okay...")
+                            filter = ImageEnhance.Contrast(image)
+                            image = filter.enhance(low_contrast_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
+                                2).sub(1)
+                            break
 
                     if (cur_t == -1):
                         break

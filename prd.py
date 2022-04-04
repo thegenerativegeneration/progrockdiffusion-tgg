@@ -661,24 +661,28 @@ with open('artists.txt', encoding="utf-8") as f:
     for line in f:
         artists.append(line.strip())
 
+artist_change = False
 for k, v in text_prompts.items():
     if type(v) == list:
         for prompts in v:
             if "_artist_" in prompts:
                 while "_artist_" in prompts:
                     prompts = prompts.replace("_artist_", random.choice(artists), 1)
-                text_prompts["0"] = [prompts]
-                print('Replaced _artist_ with random artist(s).')
-                print(f'New prompt is: {text_prompts}')
-    else: # to handle if the prompt is actually a multi-prompt. 
+                v = [prompts]
+                artist_change = True
+    else: # to handle if the prompt is actually a multi-prompt.
         for kk, vv in v.items():
             for prompts in vv:
                 if "_artist_" in prompts:
                     while "_artist_" in prompts:
                         prompts = prompts.replace("_artist_", random.choice(artists), 1)
-                    text_prompts["0"] = [prompts]
-                    print('Replaced _artist_ with random artist(s).')
-                    print(f'New prompt is: {text_prompts}')
+                    vv = [prompts]
+                    v = { **v, kk : vv }
+                    artist_change = True
+    if artist_change == True:
+        text_prompts = { **text_prompts, k : v }
+        print('Replaced _artist_ with random artist(s).')
+        print(f'New prompt is: {text_prompts}')
 
 import torch
 

@@ -111,10 +111,10 @@ from tqdm import tqdm
 sys.path.append(f'{root_path}/ResizeRight')
 sys.path.append(f'{root_path}/CLIP')
 sys.path.append(f'{root_path}/guided-diffusion')
-#sys.path.append(f'{root_path}/SLIP')
+sys.path.append(f'{root_path}/SLIP')
 import clip
 from resize_right import resize
-#from models import SLIP_VITB16, SLIP, SLIP_VITL16
+from models import SLIP_VITB16, SLIP, SLIP_VITL16
 from guided_diffusion.script_util import create_model_and_diffusion, model_and_diffusion_defaults
 from datetime import datetime
 import numpy as np
@@ -204,6 +204,7 @@ extract_nth_frame = 2
 intermediate_saves = 0
 add_metadata = True
 stop_early = 0
+adjustment_interval = 10
 high_contrast_threshold = 80
 high_contrast_adjust_amount = 0.85
 high_contrast_start = 20
@@ -492,6 +493,8 @@ for setting_arg in cl_args.settings:
                 extract_nth_frame = (settings_file['extract_nth_frame'])
             if is_json_key_present(settings_file, 'intermediate_saves'):
                 intermediate_saves = (settings_file['intermediate_saves'])
+            if is_json_key_present(settings_file, 'adjustment_interval'):
+                adjustment_interval = (settings_file['adjustment_interval'])
             if is_json_key_present(settings_file, 'high_contrast_threshold'):
                 high_contrast_threshold = (
                     settings_file['high_contrast_threshold'])
@@ -673,20 +676,22 @@ for k, v in text_prompts.items():
         for prompts in v:
             if "_artist_" in prompts:
                 while "_artist_" in prompts:
-                    prompts = prompts.replace("_artist_", random.choice(artists), 1)
+                    prompts = prompts.replace("_artist_",
+                                              random.choice(artists), 1)
                 v = [prompts]
                 artist_change = True
-    else: # to handle if the prompt is actually a multi-prompt.
+    else:  # to handle if the prompt is actually a multi-prompt.
         for kk, vv in v.items():
             for prompts in vv:
                 if "_artist_" in prompts:
                     while "_artist_" in prompts:
-                        prompts = prompts.replace("_artist_", random.choice(artists), 1)
+                        prompts = prompts.replace("_artist_",
+                                                  random.choice(artists), 1)
                     vv = [prompts]
-                    v = { **v, kk : vv }
+                    v = {**v, kk: vv}
                     artist_change = True
     if artist_change == True:
-        text_prompts = { **text_prompts, k : v }
+        text_prompts = {**text_prompts, k: v}
         print('Replaced _artist_ with random artist(s).')
         print(f'New prompt is: {text_prompts}')
 
@@ -1231,7 +1236,8 @@ def do_run():
                         if fuzzy_prompt:
                             for i in range(25):
                                 model_stat["target_embeds"].append(
-                                    (embed + torch.randn(embed.shape).to(device) *
+                                    (embed +
+                                     torch.randn(embed.shape).to(device) *
                                      rand_mag).clamp(0, 1))
                                 weights.extend([weight / cutn] * cutn)
                         else:
@@ -1489,7 +1495,8 @@ def do_run():
                                 #add some key metadata to the PNG if the commandline allows it
                                 metadata = PngInfo()
                                 if add_metadata == True:
-                                    metadata.add_text("prompt", str(text_prompts))
+                                    metadata.add_text("prompt",
+                                                      str(text_prompts))
                                     metadata.add_text("seed", str(seed))
                                     metadata.add_text("steps", str(steps))
                                     metadata.add_text("init_image",
@@ -1498,12 +1505,15 @@ def do_run():
                                                       str(skip_steps))
                                     metadata.add_text("clip_guidance_scale",
                                                       str(clip_guidance_scale))
-                                    metadata.add_text("tv_scale", str(tv_scale))
+                                    metadata.add_text("tv_scale",
+                                                      str(tv_scale))
                                     metadata.add_text("range_scale",
                                                       str(range_scale))
-                                    metadata.add_text("sat_scale", str(sat_scale))
+                                    metadata.add_text("sat_scale",
+                                                      str(sat_scale))
                                     metadata.add_text("eta", str(eta))
-                                    metadata.add_text("clamp_max", str(clamp_max))
+                                    metadata.add_text("clamp_max",
+                                                      str(clamp_max))
                                     metadata.add_text("cut_overview",
                                                       str(cut_overview))
                                     metadata.add_text("cut_innercut",
@@ -1640,41 +1650,52 @@ def do_run():
                     #print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
-                    if s % 10 == 0:
-                        if (high_brightness_adjust and s > high_brightness_start
+                    if s % adjustment_interval == 0:
+                        if (high_brightness_adjust
+                                and s > high_brightness_start
                                 and brightness > high_brightness_threshold):
-                            print(" Brightness over threshold. Compensating! Total steps counter might change, it's okay...")
+                            print(
+                                " Brightness over threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
                             filter = ImageEnhance.Brightness(image)
-                            image = filter.enhance(high_brightness_adjust_amount)
-                            init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                                2).sub(1)
+                            image = filter.enhance(
+                                high_brightness_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
                             break
 
                         if (low_brightness_adjust and s > low_brightness_start
                                 and brightness < low_brightness_threshold):
-                            print(" Brightness below threshold. Compensating! Total steps counter might change, it's okay...")
+                            print(
+                                " Brightness below threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
                             filter = ImageEnhance.Brightness(image)
-                            image = filter.enhance(low_brightness_adjust_amount)
-                            init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                                2).sub(1)
+                            image = filter.enhance(
+                                low_brightness_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
                             break
 
                         if (high_contrast_adjust and s > high_contrast_start
                                 and contrast > high_contrast_threshold):
-                            print(" Contrast over threshold. Compensating! Total steps counter might change, it's okay...")
+                            print(
+                                " Contrast over threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
                             filter = ImageEnhance.Contrast(image)
                             image = filter.enhance(high_contrast_adjust_amount)
-                            init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                                2).sub(1)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
                             break
 
                         if (low_contrast_adjust and s > low_contrast_start
                                 and contrast < low_contrast_threshold):
-                            print(" Contrast below threshold. Compensating! Total steps counter might change, it's okay...")
+                            print(
+                                " Contrast below threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
                             filter = ImageEnhance.Contrast(image)
                             image = filter.enhance(low_contrast_adjust_amount)
-                            init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                                2).sub(1)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
                             break
 
                     if (cur_t == -1):
@@ -1738,8 +1759,8 @@ def save_settings():
         'RN50x4': RN50x4,
         'RN50x16': RN50x16,
         'RN50x64': RN50x64,
-        #'SLIPB16': SLIPB16,
-        #'SLIPL16': SLIPL16,
+        'SLIPB16': SLIPB16,
+        'SLIPL16': SLIPL16,
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
@@ -1752,6 +1773,7 @@ def save_settings():
         'video_init_path': video_init_path,
         'extract_nth_frame': extract_nth_frame,
         'stop_early': stop_early,
+        'adjustment_interval': adjustment_interval,
         'high_contrast_threshold': high_contrast_threshold,
         'high_contrast_adjust_amount': high_contrast_adjust_amount,
         'high_contrast_start': high_contrast_start,
@@ -2819,7 +2841,7 @@ if RN101 is True:
     clip_models.append(
         clip.load('RN101',
                   jit=False)[0].eval().requires_grad_(False).to(device))
-'''
+
 if SLIPB16:
     SLIPB16model = SLIP_VITB16(ssl_mlp_dim=4096, ssl_emb_dim=256)
     if not os.path.exists(f'{model_path}/slip_base_100ep.pt'):
@@ -2853,7 +2875,6 @@ if SLIPL16:
     SLIPL16model.requires_grad_(False).eval().to(device)
 
     clip_models.append(SLIPL16model)
-'''
 
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])

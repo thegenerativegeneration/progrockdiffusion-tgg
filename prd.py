@@ -220,6 +220,8 @@ low_brightness_threshold = 40
 low_brightness_adjust_amount = 1.15
 low_brightness_start = 0
 low_brightness_adjust = True
+sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
+keep_unsharp = False  #@param{type: 'boolean'}
 
 # Command Line parse
 import argparse
@@ -537,6 +539,10 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'low_brightness_adjust'):
                 low_brightness_adjust = (
                     settings_file['low_brightness_adjust'])
+            if is_json_key_present(settings_file, 'sharpen_preset'):
+                sharpen_preset = (settings_file['sharpen_preset'])
+            if is_json_key_present(settings_file, 'keep_unsharp'):
+                keep_unsharp = (settings_file['keep_unsharp'])
 
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +
@@ -1762,6 +1768,8 @@ def save_settings():
         'low_brightness_adjust_amount': low_brightness_adjust_amount,
         'low_brightness_start': low_brightness_start,
         'low_brightness_adjust': low_brightness_adjust,
+        'sharpen_preset': sharpen_preset,
+        'keep_unsharp': keep_unsharp,
     }
     # print('Settings:', setting_list)
     with open(f"{batchFolder}/{batch_name}_{batchNum}_settings.json",
@@ -3158,8 +3166,8 @@ if intermediate_saves and intermediates_in_subfolder is True:
 
 #@markdown ####**SuperRes Sharpening:**
 #@markdown *Sharpen each image using latent-diffusion. Does not run in animation mode. `keep_unsharp` will save both versions.*
-sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
-keep_unsharp = False  #@param{type: 'boolean'}
+#sharpen_preset = 'Slow'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
+#keep_unsharp = False  #@param{type: 'boolean'}
 
 if sharpen_preset != 'Off' and keep_unsharp is True:
     unsharpenFolder = f'{batchFolder}/unsharpened'

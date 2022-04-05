@@ -204,6 +204,7 @@ extract_nth_frame = 2
 intermediate_saves = 0
 add_metadata = True
 stop_early = 0
+adjustment_interval = 10
 high_contrast_threshold = 80
 high_contrast_adjust_amount = 0.85
 high_contrast_start = 20
@@ -220,6 +221,8 @@ low_brightness_threshold = 40
 low_brightness_adjust_amount = 1.15
 low_brightness_start = 0
 low_brightness_adjust = True
+sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
+keep_unsharp = False  #@param{type: 'boolean'}
 
 # Command Line parse
 import argparse
@@ -490,6 +493,8 @@ for setting_arg in cl_args.settings:
                 extract_nth_frame = (settings_file['extract_nth_frame'])
             if is_json_key_present(settings_file, 'intermediate_saves'):
                 intermediate_saves = (settings_file['intermediate_saves'])
+            if is_json_key_present(settings_file, 'adjustment_interval'):
+                adjustment_interval = (settings_file['adjustment_interval'])
             if is_json_key_present(settings_file, 'high_contrast_threshold'):
                 high_contrast_threshold = (
                     settings_file['high_contrast_threshold'])
@@ -537,6 +542,10 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'low_brightness_adjust'):
                 low_brightness_adjust = (
                     settings_file['low_brightness_adjust'])
+            if is_json_key_present(settings_file, 'sharpen_preset'):
+                sharpen_preset = (settings_file['sharpen_preset'])
+            if is_json_key_present(settings_file, 'keep_unsharp'):
+                keep_unsharp = (settings_file['keep_unsharp'])
 
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +
@@ -661,11 +670,28 @@ with open('artists.txt', encoding="utf-8") as f:
     for line in f:
         artists.append(line.strip())
 
-for prompts in text_prompts["0"]:
-    if "_artist" in prompts:
-        while "_artist_" in prompts:
-            prompts = prompts.replace("_artist_", random.choice(artists), 1)
-        text_prompts["0"] = [prompts]
+artist_change = False
+for k, v in text_prompts.items():
+    if type(v) == list:
+        for prompts in v:
+            if "_artist_" in prompts:
+                while "_artist_" in prompts:
+                    prompts = prompts.replace("_artist_",
+                                              random.choice(artists), 1)
+                v = [prompts]
+                artist_change = True
+    else:  # to handle if the prompt is actually a multi-prompt.
+        for kk, vv in v.items():
+            for prompts in vv:
+                if "_artist_" in prompts:
+                    while "_artist_" in prompts:
+                        prompts = prompts.replace("_artist_",
+                                                  random.choice(artists), 1)
+                    vv = [prompts]
+                    v = {**v, kk: vv}
+                    artist_change = True
+    if artist_change == True:
+        text_prompts = {**text_prompts, k: v}
         print('Replaced _artist_ with random artist(s).')
         print(f'New prompt is: {text_prompts}')
 
@@ -1624,49 +1650,53 @@ def do_run():
                     #print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
-                    if (high_brightness_adjust and s > high_brightness_start
-                            and brightness > high_brightness_threshold):
-                        print(
-                            " Brightness over threshold. Compensating! Total steps counter might change, it's okay..."
-                        )
-                        filter = ImageEnhance.Brightness(image)
-                        image = filter.enhance(high_brightness_adjust_amount)
-                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                            2).sub(1)
-                        break
+                    if s % adjustment_interval == 0:
+                        if (high_brightness_adjust
+                                and s > high_brightness_start
+                                and brightness > high_brightness_threshold):
+                            print(
+                                " Brightness over threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
+                            filter = ImageEnhance.Brightness(image)
+                            image = filter.enhance(
+                                high_brightness_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
+                            break
 
-                    if (low_brightness_adjust and s > low_brightness_start
-                            and brightness < low_brightness_threshold):
-                        print(
-                            " Brightness below threshold. Compensating! Total steps counter might change, it's okay..."
-                        )
-                        filter = ImageEnhance.Brightness(image)
-                        image = filter.enhance(low_brightness_adjust_amount)
-                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                            2).sub(1)
-                        break
+                        if (low_brightness_adjust and s > low_brightness_start
+                                and brightness < low_brightness_threshold):
+                            print(
+                                " Brightness below threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
+                            filter = ImageEnhance.Brightness(image)
+                            image = filter.enhance(
+                                low_brightness_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
+                            break
 
-                    if (high_contrast_adjust and s > high_contrast_start
-                            and contrast > high_contrast_threshold):
-                        print(
-                            " Contrast over threshold. Compensating! Total steps counter might change, it's okay..."
-                        )
-                        filter = ImageEnhance.Contrast(image)
-                        image = filter.enhance(high_contrast_adjust_amount)
-                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                            2).sub(1)
-                        break
+                        if (high_contrast_adjust and s > high_contrast_start
+                                and contrast > high_contrast_threshold):
+                            print(
+                                " Contrast over threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
+                            filter = ImageEnhance.Contrast(image)
+                            image = filter.enhance(high_contrast_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
+                            break
 
-                    if (low_contrast_adjust and s > low_contrast_start
-                            and contrast < low_contrast_threshold):
-                        print(
-                            " Contrast below threshold. Compensating! Total steps counter might change, it's okay..."
-                        )
-                        filter = ImageEnhance.Contrast(image)
-                        image = filter.enhance(low_contrast_adjust_amount)
-                        init = TF.to_tensor(image).to(device).unsqueeze(0).mul(
-                            2).sub(1)
-                        break
+                        if (low_contrast_adjust and s > low_contrast_start
+                                and contrast < low_contrast_threshold):
+                            print(
+                                " Contrast below threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
+                            filter = ImageEnhance.Contrast(image)
+                            image = filter.enhance(low_contrast_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
+                            break
 
                     if (cur_t == -1):
                         break
@@ -1688,8 +1718,8 @@ def save_settings():
         'steps': steps,
         'display_rate': display_rate,
         'width_height_scale': width_height_scale,
-        'width': width_height[0] / width_height_scale,
-        'height': width_height[1] / width_height_scale,
+        'width': int(width_height[0] / width_height_scale),
+        'height': int(width_height[1] / width_height_scale),
         'set_seed': seed,
         'image_prompts': image_prompts,
         'clip_guidance_scale': clip_guidance_scale,
@@ -1743,6 +1773,7 @@ def save_settings():
         'video_init_path': video_init_path,
         'extract_nth_frame': extract_nth_frame,
         'stop_early': stop_early,
+        'adjustment_interval': adjustment_interval,
         'high_contrast_threshold': high_contrast_threshold,
         'high_contrast_adjust_amount': high_contrast_adjust_amount,
         'high_contrast_start': high_contrast_start,
@@ -1759,6 +1790,8 @@ def save_settings():
         'low_brightness_adjust_amount': low_brightness_adjust_amount,
         'low_brightness_start': low_brightness_start,
         'low_brightness_adjust': low_brightness_adjust,
+        'sharpen_preset': sharpen_preset,
+        'keep_unsharp': keep_unsharp,
     }
     # print('Settings:', setting_list)
     with open(f"{batchFolder}/{batch_name}_{batchNum}_settings.json",
@@ -3154,8 +3187,8 @@ if intermediate_saves and intermediates_in_subfolder is True:
 
 #@markdown ####**SuperRes Sharpening:**
 #@markdown *Sharpen each image using latent-diffusion. Does not run in animation mode. `keep_unsharp` will save both versions.*
-sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
-keep_unsharp = False  #@param{type: 'boolean'}
+#sharpen_preset = 'Slow'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
+#keep_unsharp = False  #@param{type: 'boolean'}
 
 if sharpen_preset != 'Off' and keep_unsharp is True:
     unsharpenFolder = f'{batchFolder}/unsharpened'

@@ -246,3 +246,5 @@ Greg Rutkowski
 Michael Whelan
 Mike Winkelmann
 Stephan Martiniere
+Clyde Aspevig
+Albert Bierstadt

@@ -1,0 +1,13 @@
+// This example shows how to switch prompts at a given step.
+{
+    "text_prompts": {
+        "0": {
+            "0": [
+                "A stone pillar lit by torches"
+            ],
+            "26": [
+                "A narrow alley in Paris at night by Ivan Aivazovsky"
+            ]
+        }
+    },
+}

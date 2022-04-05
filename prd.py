@@ -96,11 +96,11 @@ import math
 import timm
 from IPython import display
 import lpips
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageStat, ImageEnhance
 from PIL.PngImagePlugin import PngInfo
 import requests
 from glob import glob
-import json
+import json5 as json
 from types import SimpleNamespace
 import torch
 from torch import nn
@@ -111,18 +111,20 @@ from tqdm import tqdm
 sys.path.append(f'{root_path}/ResizeRight')
 sys.path.append(f'{root_path}/CLIP')
 sys.path.append(f'{root_path}/guided-diffusion')
-#sys.path.append(f'{root_path}/SLIP')
+sys.path.append(f'{root_path}/SLIP')
 import clip
 from resize_right import resize
-#from models import SLIP_VITB16, SLIP, SLIP_VITL16
+from models import SLIP_VITB16, SLIP, SLIP_VITL16
 from guided_diffusion.script_util import create_model_and_diffusion, model_and_diffusion_defaults
 from datetime import datetime
 import numpy as np
+import numexpr
 import matplotlib.pyplot as plt
 import random
 from ipywidgets import Output
 import hashlib
 import urllib.request
+from os.path import exists
 
 #SuperRes
 import ipywidgets as widgets
@@ -174,6 +176,7 @@ fuzzy_prompt = False
 rand_mag = 0.05
 eta = "auto"
 width_height = [832, 512]
+width_height_scale = 1
 diffusion_model = "512x512_diffusion_uncond_finetune_008100"
 use_secondary_model = True
 steps = 250
@@ -200,6 +203,26 @@ video_init_path = "/content/training.mp4"
 extract_nth_frame = 2
 intermediate_saves = 0
 add_metadata = True
+stop_early = 0
+adjustment_interval = 10
+high_contrast_threshold = 80
+high_contrast_adjust_amount = 0.85
+high_contrast_start = 20
+high_contrast_adjust = True
+low_contrast_threshold = 20
+low_contrast_adjust_amount = 2
+low_contrast_start = 20
+low_contrast_adjust = True
+high_brightness_threshold = 180
+high_brightness_adjust_amount = 0.85
+high_brightness_start = 0
+high_brightness_adjust = True
+low_brightness_threshold = 40
+low_brightness_adjust_amount = 1.15
+low_brightness_start = 0
+low_brightness_adjust = True
+sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
+keep_unsharp = False  #@param{type: 'boolean'}
 
 # Command Line parse
 import argparse
@@ -243,6 +266,10 @@ my_parser = argparse.ArgumentParser(
     description='Generate images from text prompts.',
     epilog=example_text,
     formatter_class=argparse.RawDescriptionHelpFormatter)
+my_parser.add_argument('--gui',
+                       action='store_true',
+                       required=False,
+                       help='Use the PyQt5 GUI')
 my_parser.add_argument(
     '-s',
     '--settings',
@@ -378,6 +405,8 @@ for setting_arg in cl_args.settings:
                 init_scale = (settings_file['init_scale'])
             if is_json_key_present(settings_file, 'skip_steps'):
                 skip_steps = (settings_file['skip_steps'])
+            if is_json_key_present(settings_file, 'stop_early'):
+                stop_early = (settings_file['stop_early'])
             if is_json_key_present(settings_file, 'frames_scale'):
                 frames_scale = (settings_file['frames_scale'])
             if is_json_key_present(settings_file, 'frames_skip_steps'):
@@ -407,6 +436,8 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'width'):
                 width_height = [(settings_file['width']),
                                 (settings_file['height'])]
+            if is_json_key_present(settings_file, 'width_height_scale'):
+                width_height_scale = (settings_file['width_height_scale'])
             if is_json_key_present(settings_file, 'diffusion_model'):
                 diffusion_model = (settings_file['diffusion_model'])
             if is_json_key_present(settings_file, 'use_secondary_model'):
@@ -433,6 +464,10 @@ for setting_arg in cl_args.settings:
                 RN50x16 = (settings_file['RN50x16'])
             if is_json_key_present(settings_file, 'RN50x64'):
                 RN50x64 = (settings_file['RN50x64'])
+            if is_json_key_present(settings_file, 'SLIPB16'):
+                SLIPB16 = (settings_file['SLIPB16'])
+            if is_json_key_present(settings_file, 'SLIPL16'):
+                SLIPL16 = (settings_file['SLIPL16'])
             if is_json_key_present(settings_file, 'cut_overview'):
                 cut_overview = (settings_file['cut_overview'])
             if is_json_key_present(settings_file, 'cut_innercut'):
@@ -457,11 +492,69 @@ for setting_arg in cl_args.settings:
                 extract_nth_frame = (settings_file['extract_nth_frame'])
             if is_json_key_present(settings_file, 'intermediate_saves'):
                 intermediate_saves = (settings_file['intermediate_saves'])
+            if is_json_key_present(settings_file, 'adjustment_interval'):
+                adjustment_interval = (settings_file['adjustment_interval'])
+            if is_json_key_present(settings_file, 'high_contrast_threshold'):
+                high_contrast_threshold = (
+                    settings_file['high_contrast_threshold'])
+            if is_json_key_present(settings_file,
+                                   'high_contrast_adjust_amount'):
+                high_contrast_adjust_amount = (
+                    settings_file['high_contrast_adjust_amount'])
+            if is_json_key_present(settings_file, 'high_contrast_start'):
+                high_contrast_start = (settings_file['high_contrast_start'])
+            if is_json_key_present(settings_file, 'high_contrast_adjust'):
+                high_contrast_adjust = (settings_file['high_contrast_adjust'])
+            if is_json_key_present(settings_file, 'low_contrast_threshold'):
+                low_contrast_threshold = (
+                    settings_file['low_contrast_threshold'])
+            if is_json_key_present(settings_file,
+                                   'low_contrast_adjust_amount'):
+                low_contrast_adjust_amount = (
+                    settings_file['low_contrast_adjust_amount'])
+            if is_json_key_present(settings_file, 'low_contrast_start'):
+                low_contrast_start = (settings_file['low_contrast_start'])
+            if is_json_key_present(settings_file, 'low_contrast_adjust'):
+                low_contrast_adjust = (settings_file['low_contrast_adjust'])
+            if is_json_key_present(settings_file, 'high_brightness_threshold'):
+                high_brightness_threshold = (
+                    settings_file['high_brightness_threshold'])
+            if is_json_key_present(settings_file,
+                                   'high_brightness_adjust_amount'):
+                high_brightness_adjust_amount = (
+                    settings_file['high_brightness_adjust_amount'])
+            if is_json_key_present(settings_file, 'high_brightness_start'):
+                high_brightness_start = (
+                    settings_file['high_brightness_start'])
+            if is_json_key_present(settings_file, 'high_brightness_adjust'):
+                high_brightness_adjust = (
+                    settings_file['high_brightness_adjust'])
+            if is_json_key_present(settings_file, 'low_brightness_threshold'):
+                low_brightness_threshold = (
+                    settings_file['low_brightness_threshold'])
+            if is_json_key_present(settings_file,
+                                   'low_brightness_adjust_amount'):
+                low_brightness_adjust_amount = (
+                    settings_file['low_brightness_adjust_amount'])
+            if is_json_key_present(settings_file, 'low_brightness_start'):
+                low_brightness_start = (settings_file['low_brightness_start'])
+            if is_json_key_present(settings_file, 'low_brightness_adjust'):
+                low_brightness_adjust = (
+                    settings_file['low_brightness_adjust'])
+            if is_json_key_present(settings_file, 'sharpen_preset'):
+                sharpen_preset = (settings_file['sharpen_preset'])
+            if is_json_key_present(settings_file, 'keep_unsharp'):
+                keep_unsharp = (settings_file['keep_unsharp'])
+
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +
               ' - Check formatting.')
         print(e)
         quit()
+
+width_height = [
+    width_height[0] * width_height_scale, width_height[1] * width_height_scale
+]
 
 #Now override some depending on command line and maybe a special case
 if cl_args.output:
@@ -481,6 +574,11 @@ if cl_args.hidemetadata:
     print(
         f'Hide metadata flag is ON, settings will not be stored in the PNG output.'
     )
+
+gui = False
+if cl_args.gui:
+    gui = True
+    import prdgui
 
 if cl_args.geninit:
     geninit = True
@@ -571,11 +669,28 @@ with open('artists.txt', encoding="utf-8") as f:
     for line in f:
         artists.append(line.strip())
 
-for prompts in text_prompts["0"]:
-    if "_artist" in prompts:
-        while "_artist_" in prompts:
-            prompts = prompts.replace("_artist_", random.choice(artists), 1)
-        text_prompts["0"] = [prompts]
+artist_change = False
+for k, v in text_prompts.items():
+    if type(v) == list:
+        for prompts in v:
+            if "_artist_" in prompts:
+                while "_artist_" in prompts:
+                    prompts = prompts.replace("_artist_",
+                                              random.choice(artists), 1)
+                v = [prompts]
+                artist_change = True
+    else:  # to handle if the prompt is actually a multi-prompt.
+        for kk, vv in v.items():
+            for prompts in vv:
+                if "_artist_" in prompts:
+                    while "_artist_" in prompts:
+                        prompts = prompts.replace("_artist_",
+                                                  random.choice(artists), 1)
+                    vv = [prompts]
+                    v = {**v, kk: vv}
+                    artist_change = True
+    if artist_change == True:
+        text_prompts = {**text_prompts, k: v}
         print('Replaced _artist_ with random artist(s).')
         print(f'New prompt is: {text_prompts}')
 
@@ -610,11 +725,16 @@ else:
 
 print('Using device:', device)
 
-from os.path import exists
-
 #@title 2.2 Define necessary functions
 
 # https://gist.github.com/adefossez/0646dbe9ed4005480a2407c62aac8869
+
+
+def ease(num, t):
+    start = num[0]
+    end = num[1]
+    power = num[2]
+    return start + pow(t, power) * (end - start)
 
 
 def interp(t):
@@ -714,14 +834,15 @@ def read_image_workaround(path):
     return cv2.cvtColor(im_tmp, cv2.COLOR_BGR2RGB)
 
 
-def parse_prompt(prompt):
+def parse_prompt(prompt, vars={}):
     if prompt.startswith('http://') or prompt.startswith('https://'):
         vals = prompt.rsplit(':', 2)
         vals = [vals[0] + ':' + vals[1], *vals[2:]]
     else:
         vals = prompt.rsplit(':', 1)
     vals = vals + ['', '1'][len(vals):]
-    return vals[0], float(vals[1])
+    return vals[0], float(numexpr.evaluate(vals[1], local_dict=vars))
+
 
 
 def sinc(x):
@@ -949,7 +1070,6 @@ def range_loss(input):
 
 stop_on_next_loop = False  # Make sure GPU memory doesn't get corrupted from cancelling the run mid-way through, allow a full frame to complete
 
-
 def do_run():
     seed = args.seed
     print(range(args.start_frame, args.max_frames))
@@ -1045,67 +1165,107 @@ def do_run():
         else:
             image_prompt = []
 
+        if (type(frame_prompt) is list):
+            frame_prompt = {"0": frame_prompt}
+
         print(f'Frame Prompt: {frame_prompt}')
 
+        prev_sample_prompt = []
         model_stats = []
-        for clip_model in clip_models:
-            cutn = 16
-            model_stat = {
-                "clip_model": None,
-                "target_embeds": [],
-                "make_cutouts": None,
-                "weights": []
-            }
-            model_stat["clip_model"] = clip_model
 
-            for prompt in frame_prompt:
-                txt, weight = parse_prompt(prompt)
-                txt = clip_model.encode_text(
-                    clip.tokenize(prompt).to(device)).float()
+        def do_weights(s):
+            #print(" do_weights")
+            nonlocal model_stats, prev_sample_prompt
+            sample_prompt = []
 
-                if args.fuzzy_prompt:
-                    for i in range(25):
-                        #model_stat["target_embeds"].append((txt + torch.randn(txt.shape).cuda() * args.rand_mag).clamp(0,1)) - jason: removed trying to make this device agnostic
-                        model_stat["target_embeds"].append(
-                            (txt + torch.randn(txt.shape).to(device) *
-                             args.rand_mag).clamp(0, 1))
-                        model_stat["weights"].append(weight)
-                else:
-                    model_stat["target_embeds"].append(txt)
-                    model_stat["weights"].append(weight)
+            print_sample_prompt = False
+            if (str(s) not in frame_prompt.keys()):
+                sample_prompt = prev_sample_prompt.copy()
+            else:
+                print_sample_prompt = True
+                sample_prompt = frame_prompt[str(s)].copy()
+                prev_sample_prompt = sample_prompt.copy()
 
-            if image_prompt:
-                model_stat["make_cutouts"] = MakeCutouts(
-                    clip_model.visual.input_resolution,
-                    cutn,
-                    skip_augs=skip_augs)
-                for prompt in image_prompt:
-                    path, weight = parse_prompt(prompt)
-                    img = Image.open(fetch(path)).convert('RGB')
-                    img = TF.resize(img, min(side_x, side_y, *img.size),
-                                    T.InterpolationMode.LANCZOS)
-                    batch = model_stat["make_cutouts"](TF.to_tensor(img).to(
-                        device).unsqueeze(0).mul(2).sub(1))
-                    embed = clip_model.encode_image(normalize(batch)).float()
-                    if fuzzy_prompt:
+            #sample_prompt += additional_prompts
+
+            if (print_sample_prompt):
+                print(f' Sample Prompt for sample {s}: {sample_prompt}')
+
+            model_stats = []
+            for clip_model in clip_models:
+                cutn = 16
+                model_stat = {
+                    "clip_model": None,
+                    "target_embeds": [],
+                    "make_cutouts": None,
+                    "weights": []
+                }
+                model_stat["clip_model"] = clip_model
+
+                for prompt in sample_prompt:
+                    txt, weight = parse_prompt(prompt, {'s': s})
+                    txt = clip_model.encode_text(
+                        clip.tokenize(prompt).to(device)).float()
+
+                    if args.fuzzy_prompt:
                         for i in range(25):
-                            #model_stat["target_embeds"].append((embed + torch.randn(embed.shape).cuda() * rand_mag).clamp(0,1)) - jason: removed trying to make this device agnostic
                             model_stat["target_embeds"].append(
-                                (embed + torch.randn(embed.shape).to(device) *
-                                 rand_mag).clamp(0, 1))
-                            weights.extend([weight / cutn] * cutn)
+                                (txt + torch.randn(txt.shape).to(device) *
+                                 args.rand_mag).clamp(0, 1))
+                            model_stat["weights"].append(weight)
                     else:
-                        model_stat["target_embeds"].append(embed)
-                        model_stat["weights"].extend([weight / cutn] * cutn)
+                        model_stat["target_embeds"].append(txt)
+                        model_stat["weights"].append(weight)
 
-            model_stat["target_embeds"] = torch.cat(
-                model_stat["target_embeds"])
-            model_stat["weights"] = torch.tensor(model_stat["weights"],
-                                                 device=device)
-            #if model_stat["weights"].sum().abs() < 1e-3:
-            #    raise RuntimeError('The weights must not sum to 0.')
-            model_stat["weights"] /= model_stat["weights"].abs().sum()
-            model_stats.append(model_stat)
+                if image_prompt:
+                    model_stat["make_cutouts"] = MakeCutouts(
+                        clip_model.visual.input_resolution,
+                        cutn,
+                        skip_augs=skip_augs)
+                    for prompt in image_prompt:
+                        path, weight = parse_prompt(prompt, {'s': s})
+                        weight *= magnitude_multiplier
+                        img = Image.open(fetch(path)).convert('RGB')
+                        img = TF.resize(img, min(side_x, side_y, *img.size),
+                                        T.InterpolationMode.LANCZOS)
+                        batch = model_stat["make_cutouts"](TF.to_tensor(
+                            img).to(device).unsqueeze(0).mul(2).sub(1))
+                        embed = clip_model.encode_image(
+                            normalize(batch)).float()
+                        if fuzzy_prompt:
+                            for i in range(25):
+                                model_stat["target_embeds"].append(
+                                    (embed +
+                                     torch.randn(embed.shape).to(device) *
+                                     rand_mag).clamp(0, 1))
+                                weights.extend([weight / cutn] * cutn)
+                        else:
+                            model_stat["target_embeds"].append(embed)
+                            model_stat["weights"].extend([weight / cutn] *
+                                                         cutn)
+
+                model_stat["target_embeds"] = torch.cat(
+                    model_stat["target_embeds"])
+                model_stat["weights"] = torch.tensor(model_stat["weights"],
+                                                     device=device)
+                if model_stat["weights"].sum().abs() < 1e-3:
+                    raise RuntimeError('The weights must not sum to 0.')
+                model_stat["weights"] /= model_stat["weights"].sum().abs()
+                model_stats.append(model_stat)
+
+        initial_weights = False
+
+        print(f'skip steps: {skip_steps}')
+
+        if (skip_steps > 0):
+            for i in range(skip_steps, 0, -1):
+                if (str(i) in frame_prompt.keys()):
+                    do_weights(i)
+                    initial_weights = True
+                    break
+
+        if (not initial_weights):
+            do_weights(0)
 
         init = None
         if init_image is not None:
@@ -1220,6 +1380,21 @@ def do_run():
                     grad = torch.zeros_like(x)
             if args.clamp_grad and x_is_NaN == False:
                 magnitude = grad.square().mean().sqrt()
+                timestep = (1000 - t.item()) / 1000
+                clamp_max = 0
+
+                #save_tensor_as_image(grad, "grad.png")
+
+                if isinstance(args.clamp_max, list):
+                    clamp_max = ease(args.clamp_max, timestep)
+                elif isinstance(args.clamp_max, str):
+                    #print(args.clamp_max)
+                    clamp_max = float(numexpr.evaluate(args.clamp_max))
+                    #print(f"\nresult: {clamp_max}\n")
+                else:
+                    clamp_max = args.clamp_max
+
+                #print(f"{timestep}: {clamp_max}")
                 return grad * magnitude.clamp(
                     max=args.clamp_max
                 ) / magnitude  #min=-0.02, min=-clamp_max,
@@ -1247,132 +1422,284 @@ def do_run():
             if perlin_init:
                 init = regen_perlin()
 
-            if args.sampling_mode == 'ddim':
-                samples = sample_fn(
-                    model,
-                    (batch_size, 3, args.side_y, args.side_x),
-                    clip_denoised=clip_denoised,
-                    model_kwargs={},
-                    cond_fn=cond_fn,
-                    progress=True,
-                    skip_timesteps=skip_steps,
-                    init_image=init,
-                    randomize_class=randomize_class,
-                    eta=eta,
-                )
-            else:
-                samples = sample_fn(
-                    model,
-                    (batch_size, 3, args.side_y, args.side_x),
-                    clip_denoised=clip_denoised,
-                    model_kwargs={},
-                    cond_fn=cond_fn,
-                    progress=True,
-                    skip_timesteps=skip_steps,
-                    init_image=init,
-                    randomize_class=randomize_class,
-                    order=2,
-                )
+            def do_sample_fn(_init_image, _skip):
+                #print(f" do_sample_fn {_skip}")
+                if args.sampling_mode == 'ddim':
+                    samples = sample_fn(
+                        model,
+                        (batch_size, 3, args.side_y, args.side_x),
+                        clip_denoised=clip_denoised,
+                        model_kwargs={},
+                        cond_fn=cond_fn,
+                        progress=True,
+                        skip_timesteps=_skip,
+                        init_image=init,
+                        randomize_class=randomize_class,
+                        eta=eta,
+                    )
+                else:
+                    samples = sample_fn(
+                        model,
+                        (batch_size, 3, args.side_y, args.side_x),
+                        clip_denoised=clip_denoised,
+                        model_kwargs={},
+                        cond_fn=cond_fn,
+                        progress=True,
+                        skip_timesteps=_skip,
+                        init_image=init,
+                        randomize_class=randomize_class,
+                        order=2,
+                    )
+
+                return samples
 
             # with run_display:
             # display.clear_output(wait=True)
             imgToSharpen = None
-            for j, sample in enumerate(samples):
-                cur_t -= 1
-                intermediateStep = False
-                if args.steps_per_checkpoint is not None:
-                    if j % steps_per_checkpoint == 0 and j > 0:
+            adjustment_prompt = []
+            while cur_t >= stop_early:
+                samples = do_sample_fn(init, steps - cur_t - 1)
+                for j, sample in enumerate(samples):
+                    cur_t -= 1
+                    if (cur_t < stop_early):
+                        cur_t = -1
+
+                    intermediateStep = False
+                    if args.steps_per_checkpoint is not None:
+                        if j % steps_per_checkpoint == 0 and j > 0:
+                            intermediateStep = True
+                    elif j in args.intermediate_saves:
                         intermediateStep = True
-                elif j in args.intermediate_saves:
-                    intermediateStep = True
-                with image_display:
-                    if j % args.display_rate == 0 or cur_t == -1 or intermediateStep == True:
-                        for k, image in enumerate(sample['pred_xstart']):
-                            # tqdm.write(f'Batch {i}, step {j}, output {k}:')
-                            current_time = datetime.now().strftime(
-                                '%y%m%d-%H%M%S_%f')
-                            percent = math.ceil(j / total_steps * 100)
-                            if args.n_batches > 0:
-                                #if intermediates are saved to the subfolder, don't append a step or percentage to the name
-                                if cur_t == -1 and args.intermediates_in_subfolder is True:
-                                    save_num = f'{frame_num:04}' if animation_mode != "None" else i
-                                    filename = f'{args.batch_name}_{args.batchNum}_{save_num}.png'
+                    with image_display:
+                        if j % args.display_rate == 0 or cur_t == -1 or intermediateStep == True:
+                            for k, image in enumerate(sample['pred_xstart']):
+                                # tqdm.write(f'Batch {i}, step {j}, output {k}:')
+                                current_time = datetime.now().strftime(
+                                    '%y%m%d-%H%M%S_%f')
+                                percent = math.ceil(j / total_steps * 100)
+                                if args.n_batches > 0:
+                                    #if intermediates are saved to the subfolder, don't append a step or percentage to the name
+                                    if cur_t == -1 and args.intermediates_in_subfolder is True:
+                                        save_num = f'{frame_num:04}' if animation_mode != "None" else i
+                                        filename = f'{args.batch_name}_{args.batchNum}_{save_num}.png'
+                                    else:
+                                        #If we're working with percentages, append it
+                                        if args.steps_per_checkpoint is not None:
+                                            filename = f'{args.batch_name}({args.batchNum})_{i:04}-{percent:02}%.png'
+                                        # Or else, iIf we're working with specific steps, append those
+                                        else:
+                                            filename = f'{args.batch_name}({args.batchNum})_{i:04}-{j:03}.png'
+                                image = TF.to_pil_image(
+                                    image.add(1).div(2).clamp(0, 1))
+                                #add some key metadata to the PNG if the commandline allows it
+                                metadata = PngInfo()
+                                if add_metadata == True:
+                                    metadata.add_text("prompt",
+                                                      str(text_prompts))
+                                    metadata.add_text("seed", str(seed))
+                                    metadata.add_text("steps", str(steps))
+                                    metadata.add_text("init_image",
+                                                      str(init_image))
+                                    metadata.add_text("skip_steps",
+                                                      str(skip_steps))
+                                    metadata.add_text("clip_guidance_scale",
+                                                      str(clip_guidance_scale))
+                                    metadata.add_text("tv_scale",
+                                                      str(tv_scale))
+                                    metadata.add_text("range_scale",
+                                                      str(range_scale))
+                                    metadata.add_text("sat_scale",
+                                                      str(sat_scale))
+                                    metadata.add_text("eta", str(eta))
+                                    metadata.add_text("clamp_max",
+                                                      str(clamp_max))
+                                    metadata.add_text("cut_overview",
+                                                      str(cut_overview))
+                                    metadata.add_text("cut_innercut",
+                                                      str(cut_innercut))
+                                    metadata.add_text("cut_ic_pow",
+                                                      str(cut_ic_pow))
+
+                                if j % args.display_rate == 0 or cur_t == -1:
+                                    image.save('progress.png')
+                                    display.clear_output(wait=True)
+                                    #display.display(display.Image('progress.png'))
+                                if args.steps_per_checkpoint is not None:
+                                    if j % args.steps_per_checkpoint == 0 and j > 0:
+                                        if args.intermediates_in_subfolder is True:
+                                            image.save(
+                                                f'{partialFolder}/{filename}')
+                                        else:
+                                            image.save(
+                                                f'{batchFolder}/{filename}')
                                 else:
-                                    #If we're working with percentages, append it
-                                    if args.steps_per_checkpoint is not None:
-                                        filename = f'{args.batch_name}_{args.batchNum}_{i:04}-{percent:02}%.png'
-                                    # Or else, iIf we're working with specific steps, append those
-                                    else:
-                                        filename = f'{args.batch_name}_{args.batchNum}__{i:04}-{j:03}.png'
-                            image = TF.to_pil_image(
-                                image.add(1).div(2).clamp(0, 1))
-                            #add some key metadata to the PNG if the commandline allows it
-                            metadata = PngInfo()
-                            if add_metadata == True:
-                                metadata.add_text("prompt", str(text_prompts))
-                                metadata.add_text("seed", str(seed))
-                                metadata.add_text("steps", str(steps))
-                                metadata.add_text("init_image",
-                                                  str(init_image))
-                                metadata.add_text("skip_steps",
-                                                  str(skip_steps))
-                                metadata.add_text("clip_guidance_scale",
-                                                  str(clip_guidance_scale))
-                                metadata.add_text("tv_scale", str(tv_scale))
-                                metadata.add_text("range_scale",
-                                                  str(range_scale))
-                                metadata.add_text("sat_scale", str(sat_scale))
-                                metadata.add_text("eta", str(eta))
-                                metadata.add_text("clamp_max", str(clamp_max))
-                                metadata.add_text("cut_overview",
-                                                  str(cut_overview))
-                                metadata.add_text("cut_innercut",
-                                                  str(cut_innercut))
-                                metadata.add_text("cut_ic_pow",
-                                                  str(cut_ic_pow))
-                            if j % args.display_rate == 0 or cur_t == -1:
-                                image.save('progress.png')
-                                display.clear_output(wait=True)
-                                #display.display(display.Image('progress.png'))
-                            if args.steps_per_checkpoint is not None:
-                                if j % args.steps_per_checkpoint == 0 and j > 0:
-                                    if args.intermediates_in_subfolder is True:
-                                        image.save(
-                                            f'{partialFolder}/{filename}')
-                                    else:
-                                        image.save(f'{batchFolder}/{filename}')
-                            else:
-                                if j in args.intermediate_saves:
-                                    print('Saving partial')
-                                    if args.intermediates_in_subfolder is True:
-                                        image.save(
-                                            f'{partialFolder}/{filename}')
-                                    else:
-                                        image.save(f'{batchFolder}/{filename}')
+                                    if j in args.intermediate_saves:
+                                        if args.intermediates_in_subfolder is True:
+                                            image.save(
+                                                f'{partialFolder}/{filename}')
+                                        else:
+                                            image.save(
+                                                f'{batchFolder}/{filename}')
                                     if geninit is True:
                                         image.save('geninit.png')
                                         raise KeyboardInterrupt
 
-                            if cur_t == -1:
-                                if frame_num == 0:
-                                    save_settings()
-                                if args.animation_mode != "None":
-                                    image.save('prevFrame.png')
-                                if args.sharpen_preset != "Off" and animation_mode == "None":
-                                    imgToSharpen = image
-                                    if args.keep_unsharp is True:
-                                        image.save(
-                                            f'{unsharpenFolder}/{filename}')
-                                else:
-                                    image.save(f'{batchFolder}/{filename}',
-                                               pnginfo=metadata)
-                                print('Incrementing seed by one.')
-                                seed = seed + 1
-                                np.random.seed(seed)
-                                random.seed(seed)
-                                torch.manual_seed(seed)
-                                # if frame_num != args.max_frames-1:
-                                #   display.clear_output()
+                                if cur_t == -1:
+                                    if frame_num == 0:
+                                        save_settings()
+                                    if args.animation_mode != "None":
+                                        image.save('prevFrame.png')
+                                    if args.sharpen_preset != "Off" and animation_mode == "None":
+                                        imgToSharpen = image
+                                        if args.keep_unsharp is True:
+                                            image.save(
+                                                f'{unsharpenFolder}/{filename}'
+                                            )
+                                    else:
+                                        image.save(f'{batchFolder}/{filename}',
+                                                   pnginfo=metadata)
+                                    print('Incrementing seed by one.')
+                                    seed = seed + 1
+                                    np.random.seed(seed)
+                                    random.seed(seed)
+                                    torch.manual_seed(seed)
+                                    # if frame_num != args.max_frames-1:
+                                    #   display.clear_output()
+
+                    dynamic_adjustment = False
+                    adjustment_prompt = []
+                    magnitude_multiplier = 1
+                    image = sample['pred_xstart'][0]
+                    image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
+
+                    if (gui):
+                        prdgui.update_image(image)
+                        #prdgui.update_text(str(cur_t))
+
+                    if (dynamic_adjustment):
+                        stat = ImageStat.Stat(image)
+
+                        print(f" stddev: {stat.stddev}")
+                        print(f"var:    {stat.var}")
+                        print(f"mean:   {stat.mean}")
+                        # Inaccurate way of calculating brightness.  Adjust later.
+                        brightness = (stat.mean[0] + stat.mean[1] +
+                                      stat.mean[2]) / 3
+
+                        #print(f' brightness: {brightness}')
+                        overexposure_threshold = 140
+                        overexposure_adjustment_magnitude = 10
+                        overexposure_adjustment_max = 4
+
+                        underexposure_threshold = 80
+                        underexposure_adjustment_magnitude = 10
+                        underexposure_adjustment_max = 4
+
+                        #Track the total magnitude of the adjustments so it can be added to the main prompt
+                        total_adjustment_magnitude = 0
+                        adjustment_prompt = []
+
+                        if (brightness > overexposure_threshold):
+                            overexposure = brightness - overexposure_threshold
+                            magnitude = overexposure / (
+                                (255 - overexposure_threshold) /
+                                overexposure_adjustment_magnitude)
+                            if (magnitude > overexposure_adjustment_max):
+                                magnitude = overexposure_adjustment_max
+                            adjustment_prompt += [
+                                #f'overexposed:-{magnitude}',
+                                #f'grainy:-{magnitude}', f'low contrast:{magnitude}'
+                                f'overexposed, grainy, high contrast, brightness:-{magnitude}',
+                                f'dark color scheme:{magnitude}',
+                                #f'low contrast:{magnitude}',
+                                #f'white, yellow, pink, magenta:-{magnitude}'
+                            ]
+                            total_adjustment_magnitude += abs(magnitude)
+
+                        if (brightness < underexposure_threshold):
+                            underexposure = underexposure_threshold - brightness
+                            magnitude = underexposure / underexposure_threshold * underexposure_adjustment_magnitude
+                            if (magnitude > underexposure_adjustment_max):
+                                magnitude = underexposure_adjustment_max
+                            adjustment_prompt += [
+                                f'bright color scheme, midday, blinding light:{magnitude}'
+                            ]
+                            total_adjustment_magnitude += abs(magnitude)
+
+                        if (len(adjustment_prompt) > 0):
+                            print(
+                                f" {j}: {stat.mean}/{brightness}: {adjustment_prompt}"
+                            )
+                        magnitude_multiplier += total_adjustment_magnitude
+
+                        #if (j < 40 and len(adjustment_prompt) > 0):
+                        #    magnitude_multiplier *= (j + 1) / 40
+
+                    do_weights(steps - cur_t - 1)
+
+                    image = sample['pred_xstart'][0]
+                    image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
+                    stat = ImageStat.Stat(image)
+
+                    brightness = sum(stat.mean) / len(stat.mean)
+                    contrast = sum(stat.stddev) / len(stat.stddev)
+
+                    s = steps - cur_t
+
+                    #print(f" Contrast at {s}: {contrast}")
+                    #print(f" Brightness at {s}: {brightness}")
+
+                    if s % adjustment_interval == 0:
+                        if (high_brightness_adjust
+                                and s > high_brightness_start
+                                and brightness > high_brightness_threshold):
+                            print(
+                                " Brightness over threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
+                            filter = ImageEnhance.Brightness(image)
+                            image = filter.enhance(
+                                high_brightness_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
+                            break
+
+                        if (low_brightness_adjust and s > low_brightness_start
+                                and brightness < low_brightness_threshold):
+                            print(
+                                " Brightness below threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
+                            filter = ImageEnhance.Brightness(image)
+                            image = filter.enhance(
+                                low_brightness_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
+                            break
+
+                        if (high_contrast_adjust and s > high_contrast_start
+                                and contrast > high_contrast_threshold):
+                            print(
+                                " Contrast over threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
+                            filter = ImageEnhance.Contrast(image)
+                            image = filter.enhance(high_contrast_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
+                            break
+
+                        if (low_contrast_adjust and s > low_contrast_start
+                                and contrast < low_contrast_threshold):
+                            print(
+                                " Contrast below threshold. Compensating! Total steps counter might change, it's okay..."
+                            )
+                            filter = ImageEnhance.Contrast(image)
+                            image = filter.enhance(low_contrast_adjust_amount)
+                            init = TF.to_tensor(image).to(device).unsqueeze(
+                                0).mul(2).sub(1)
+                            break
+
+                    if (cur_t == -1):
+                        break
+
 
             with image_display:
                 if args.sharpen_preset != "Off" and animation_mode == "None":
@@ -1390,8 +1717,9 @@ def save_settings():
         'n_batches': n_batches,
         'steps': steps,
         'display_rate': display_rate,
-        'width': width_height[0],
-        'height': width_height[1],
+        'width_height_scale': width_height_scale,
+        'width': int(width_height[0] / width_height_scale),
+        'height': int(width_height[1] / width_height_scale),
         'set_seed': seed,
         'image_prompts': image_prompts,
         'clip_guidance_scale': clip_guidance_scale,
@@ -1431,8 +1759,8 @@ def save_settings():
         'RN50x4': RN50x4,
         'RN50x16': RN50x16,
         'RN50x64': RN50x64,
-        #'SLIPB16': SLIPB16,
-        #'SLIPL16': SLIPL16,
+        'SLIPB16': SLIPB16,
+        'SLIPL16': SLIPL16,
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
@@ -1444,6 +1772,26 @@ def save_settings():
         'translation_y': translation_y,
         'video_init_path': video_init_path,
         'extract_nth_frame': extract_nth_frame,
+        'stop_early': stop_early,
+        'adjustment_interval': adjustment_interval,
+        'high_contrast_threshold': high_contrast_threshold,
+        'high_contrast_adjust_amount': high_contrast_adjust_amount,
+        'high_contrast_start': high_contrast_start,
+        'high_contrast_adjust': high_contrast_adjust,
+        'low_contrast_threshold': low_contrast_threshold,
+        'low_contrast_adjust_amount': low_contrast_adjust_amount,
+        'low_contrast_start': low_contrast_start,
+        'low_contrast_adjust': low_contrast_adjust,
+        'high_brightness_threshold': high_brightness_threshold,
+        'high_brightness_adjust_amount': high_brightness_adjust_amount,
+        'high_brightness_start': high_brightness_start,
+        'high_brightness_adjust': high_brightness_adjust,
+        'low_brightness_threshold': low_brightness_threshold,
+        'low_brightness_adjust_amount': low_brightness_adjust_amount,
+        'low_brightness_start': low_brightness_start,
+        'low_brightness_adjust': low_brightness_adjust,
+        'sharpen_preset': sharpen_preset,
+        'keep_unsharp': keep_unsharp,
     }
     # print('Settings:', setting_list)
     with open(f"{batchFolder}/{batch_name}_{batchNum}_settings.json",
@@ -1904,7 +2252,6 @@ def load_model_from_config(config, ckpt):
     sd = pl_sd["state_dict"]
     model = instantiate_from_config(config.model)
     m, u = model.load_state_dict(sd, strict=False)
-    #if not cl_args.cpu: model.cuda() #Can't do CUDA stuff when we're running on CPU
     model.to(device)
     model.eval()
     return {"model": model}, global_step
@@ -2214,7 +2561,6 @@ sr_model = get_model('superresolution')
 
 
 def do_superres(img, filepath):
-
     if args.sharpen_preset == 'Faster':
         sr_diffusion_steps = "25"
         sr_pre_downsample = '1/2'
@@ -2494,6 +2840,40 @@ if RN101 is True:
     clip_models.append(
         clip.load('RN101',
                   jit=False)[0].eval().requires_grad_(False).to(device))
+
+if SLIPB16:
+    SLIPB16model = SLIP_VITB16(ssl_mlp_dim=4096, ssl_emb_dim=256)
+    if not os.path.exists(f'{model_path}/slip_base_100ep.pt'):
+        #!wget https://dl.fbaipublicfiles.com/slip/slip_base_100ep.pt -P {model_path}
+        urllib.request.urlretrieve(
+            "https://dl.fbaipublicfiles.com/slip/slip_base_100ep.pt",
+            model_path)
+    sd = torch.load(f'{model_path}/slip_base_100ep.pt')
+    real_sd = {}
+    for k, v in sd['state_dict'].items():
+        real_sd['.'.join(k.split('.')[1:])] = v
+    del sd
+    SLIPB16model.load_state_dict(real_sd)
+    SLIPB16model.requires_grad_(False).eval().to(device)
+
+    clip_models.append(SLIPB16model)
+
+if SLIPL16:
+    SLIPL16model = SLIP_VITL16(ssl_mlp_dim=4096, ssl_emb_dim=256)
+    if not os.path.exists(f'{model_path}/slip_large_100ep.pt'):
+        #!wget https://dl.fbaipublicfiles.com/slip/slip_large_100ep.pt -P {model_path}
+        urllib.request.urlretrieve(
+            "https://dl.fbaipublicfiles.com/slip/slip_large_100ep.pt",
+            model_path)
+    sd = torch.load(f'{model_path}/slip_large_100ep.pt')
+    real_sd = {}
+    for k, v in sd['state_dict'].items():
+        real_sd['.'.join(k.split('.')[1:])] = v
+    del sd
+    SLIPL16model.load_state_dict(real_sd)
+    SLIPL16model.requires_grad_(False).eval().to(device)
+
+    clip_models.append(SLIPL16model)
 
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])
@@ -2806,8 +3186,8 @@ if intermediate_saves and intermediates_in_subfolder is True:
 
 #@markdown ####**SuperRes Sharpening:**
 #@markdown *Sharpen each image using latent-diffusion. Does not run in animation mode. `keep_unsharp` will save both versions.*
-sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
-keep_unsharp = False  #@param{type: 'boolean'}
+#sharpen_preset = 'Slow'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
+#keep_unsharp = False  #@param{type: 'boolean'}
 
 if sharpen_preset != 'Off' and keep_unsharp is True:
     unsharpenFolder = f'{batchFolder}/unsharpened'
@@ -2929,6 +3309,8 @@ if set_seed == 'random_seed':
 else:
     seed = int(set_seed)
 
+print(f'Using seed {seed}')
+
 # Leave this section alone, it takes all our settings and puts them in one variable dictionary
 args = {
     'batchNum': batchNum,
@@ -2996,6 +3378,7 @@ args = {
     'clip_denoised': clip_denoised,
     'fuzzy_prompt': fuzzy_prompt,
     'rand_mag': rand_mag,
+    'stop_early': stop_early,
 }
 
 args = SimpleNamespace(**args)
@@ -3015,7 +3398,11 @@ if model_config['use_fp16']:
 gc.collect()
 torch.cuda.empty_cache()
 try:
-    do_run()
+    if (gui):
+        print("running with gui")
+        prdgui.run_gui(do_run, side_x, side_y)
+    else:
+        do_run()
 except KeyboardInterrupt:
     pass
 finally:

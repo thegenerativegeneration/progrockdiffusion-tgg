@@ -98,6 +98,7 @@ cd progrockdiffusion
 ```
 git clone https://github.com/crowsonkb/guided-diffusion
 git clone https://github.com/openai/CLIP.git
+git clone https://github.com/facebookresearch/SLIP.git
 git clone https://github.com/assafshocher/ResizeRight.git
 git clone https://github.com/CompVis/latent-diffusion.git
 git clone https://github.com/CompVis/taming-transformers

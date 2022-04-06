@@ -1,6 +1,13 @@
 # progrockdiffusion
 A command line version of [Disco Diffusion](https://github.com/alembics/disco-diffusion).
 
+# Quick note on updating:
+A new version was released today, April 5 2022. If you are trying to update you'll need to install a few additional items:
+```
+git clone https://github.com/facebookresearch/SLIP.git
+pip install json5 numexpr
+```
+
 # Hardware prerequisites
 You will need at least 16gb of RAM if not using a GPU.
 An Nvidia GPU is *highly* recommended! The speed improvement is massive.

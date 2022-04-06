@@ -206,6 +206,7 @@ extract_nth_frame = 2
 intermediate_saves = 0
 add_metadata = True
 stop_early = 0
+fix_brightness_contrast: True
 adjustment_interval = 10
 high_contrast_threshold = 80
 high_contrast_adjust_amount = 0.85
@@ -494,6 +495,8 @@ for setting_arg in cl_args.settings:
                 extract_nth_frame = (settings_file['extract_nth_frame'])
             if is_json_key_present(settings_file, 'intermediate_saves'):
                 intermediate_saves = (settings_file['intermediate_saves'])
+            if is_json_key_present(settings_file, 'fix_brightness_contrast'):
+                fix_brightness_contrast = (settings_file['fix_brightness_contrast'])
             if is_json_key_present(settings_file, 'adjustment_interval'):
                 adjustment_interval = (settings_file['adjustment_interval'])
             if is_json_key_present(settings_file, 'high_contrast_threshold'):
@@ -1651,7 +1654,7 @@ def do_run():
                     #print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
-                    if s % adjustment_interval == 0:
+                    if (s % adjustment_interval == 0) and (fix_brightness_contrast == True):
                         if (high_brightness_adjust
                                 and s > high_brightness_start
                                 and brightness > high_brightness_threshold):
@@ -1775,6 +1778,7 @@ def save_settings():
         'video_init_path': video_init_path,
         'extract_nth_frame': extract_nth_frame,
         'stop_early': stop_early,
+        'fix_brightness_contrast': fix_brightness_contrast,
         'adjustment_interval': adjustment_interval,
         'high_contrast_threshold': high_contrast_threshold,
         'high_contrast_adjust_amount': high_contrast_adjust_amount,

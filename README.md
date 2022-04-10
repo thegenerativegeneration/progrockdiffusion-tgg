@@ -26,6 +26,10 @@ If using a GPU: CUDA 11.4+ (installation instructions can be found here: https:/
 ## Windows
 Windows 10 or 11 (If using a GPU, NVIDIA drivers installed)
 Other versions may work but are untested
+You might need to install Git if you don't already have it. The installer can be found here.
+```
+https://git-scm.com/download/win
+```
 
 ## MacOS
 Minimal testing has been done with the latest MacOS on an M1 Macbook Air.

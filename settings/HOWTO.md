@@ -14,7 +14,7 @@ In practical terms, this means you can have partial settings files that only adj
 
 ### Multiple settings example:
 Let's say you have "myscene.json" which contains your lovely prompt, the number of images you want to make, and a few other tweaks.
-It's working well, but now you want to take it to the next level and run it at a number higher resolution with more advanced models enabled.
+It's working well, but now you want to take it to the next level and run it at a much higher resolution with more advanced models enabled.
 Instead of tweaking the myscene.json to achieve this, you can simply layer on another settings file that has your high-quality preferred settings.
 
 ```

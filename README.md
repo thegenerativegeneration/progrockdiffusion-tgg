@@ -26,10 +26,6 @@ If using a GPU: CUDA 11.4+ (installation instructions can be found here: https:/
 ## Windows
 Windows 10 or 11 (If using a GPU, NVIDIA drivers installed)
 Other versions may work but are untested
-You might need to install Git if you don't already have it. The installer can be found here.
-```
-https://git-scm.com/download/win
-```
 
 ## MacOS
 Minimal testing has been done with the latest MacOS on an M1 Macbook Air.
@@ -93,6 +89,7 @@ conda create --name progrockdiffusion python=3.8
 **[All Platforms]**
 ```
 conda activate progrockdiffusion
+conda install -c anaconda git
 ```
 
 Now change to whatever base directory you want ProgRockDiffusion to go into.
@@ -157,6 +154,19 @@ sudo apt-get install ffmpeg libsm6 libxext6 -y
 **[Linux]** Finally:
 ```
 sudo apt install imagemagick
+```
+
+## Optional Animation support
+You'll need to install ffmpeg if you want to do animations.
+
+**[Windows]**
+Download from here: https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z
+
+Inside the 7z file look for ffmpeg.exe and extract it into your progrockdiffusion directory (or any directory that's in your path)
+
+**[Linux]**
+```
+sudo apt-get install ffmpeg
 ```
 
 # Use

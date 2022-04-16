@@ -226,6 +226,7 @@ low_brightness_start = 0
 low_brightness_adjust = True
 sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
 keep_unsharp = False  #@param{type: 'boolean'}
+animation_mode = "None" # "Video Input", "2D"
 
 # Command Line parse
 import argparse
@@ -550,6 +551,8 @@ for setting_arg in cl_args.settings:
                 sharpen_preset = (settings_file['sharpen_preset'])
             if is_json_key_present(settings_file, 'keep_unsharp'):
                 keep_unsharp = (settings_file['keep_unsharp'])
+            if is_json_key_present(settings_file, 'animation_mode'):
+                animation_mode = (settings_file['animation_mode'])
 
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +
@@ -1085,6 +1088,7 @@ def do_run():
         display.clear_output(wait=True)
 
         # Print Frame progress if animation mode is on
+        print(f'Animation mode is {animation_mode}') #debug
         if args.animation_mode != "None":
             batchBar = tqdm(range(args.max_frames), desc="Frames")
             batchBar.n = frame_num
@@ -1194,7 +1198,7 @@ def do_run():
             #sample_prompt += additional_prompts
 
             if (print_sample_prompt):
-                print(f' Sample Prompt for sample {s}: {sample_prompt}')
+                print(f' Prompt for step {s}: {sample_prompt}')
 
             model_stats = []
             for clip_model in clip_models:
@@ -1553,6 +1557,7 @@ def do_run():
                                     if frame_num == 0:
                                         save_settings()
                                     if args.animation_mode != "None":
+                                        print('saving prev frame for animation') #debug
                                         image.save('prevFrame.png')
                                     if args.sharpen_preset != "Off" and animation_mode == "None":
                                         imgToSharpen = image
@@ -1563,11 +1568,12 @@ def do_run():
                                     else:
                                         image.save(f'{batchFolder}/{filename}',
                                                    pnginfo=metadata)
-                                    print('Incrementing seed by one.')
-                                    seed = seed + 1
-                                    np.random.seed(seed)
-                                    random.seed(seed)
-                                    torch.manual_seed(seed)
+                                    if args.animation_mode == "None":
+                                        print('Incrementing seed by one.')
+                                        seed = seed + 1
+                                        np.random.seed(seed)
+                                        random.seed(seed)
+                                        torch.manual_seed(seed)
                                     # if frame_num != args.max_frames-1:
                                     #   display.clear_output()
 
@@ -1770,6 +1776,7 @@ def save_settings():
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
         'cut_icgray_p': str(cut_icgray_p),
+        'animation_mode': animation_mode,
         'key_frames': key_frames,
         'angle': angle,
         'zoom': zoom,

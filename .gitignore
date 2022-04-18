@@ -11,6 +11,7 @@ ResizeRight/
 taming-transformers/
 scripts/
 *.png
+!mask.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

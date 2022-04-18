@@ -259,7 +259,6 @@ To specify which CUDA device to use (advanced) by device ID (default is 0):
 
 To HIDE the settings that get added to your output PNG's metadata, use:
  {python_example} prd.py --hidemetadata
-
 '''
 
 my_parser = argparse.ArgumentParser(
@@ -846,6 +845,7 @@ def parse_prompt(prompt, vars={}):
     return vals[0], float(numexpr.evaluate(vals[1], local_dict=vars))
 
 
+
 def sinc(x):
     return torch.where(x != 0,
                        torch.sin(math.pi * x) / (math.pi * x), x.new_ones([]))
@@ -1070,7 +1070,6 @@ def range_loss(input):
 
 
 stop_on_next_loop = False  # Make sure GPU memory doesn't get corrupted from cancelling the run mid-way through, allow a full frame to complete
-
 
 def do_run():
     seed = args.seed
@@ -1701,6 +1700,7 @@ def do_run():
 
                     if (cur_t == -1):
                         break
+
 
             with image_display:
                 if args.sharpen_preset != "Off" and animation_mode == "None":
@@ -2562,7 +2562,6 @@ sr_model = get_model('superresolution')
 
 
 def do_superres(img, filepath):
-
     if args.sharpen_preset == 'Faster':
         sr_diffusion_steps = "25"
         sr_pre_downsample = '1/2'

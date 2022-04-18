@@ -554,7 +554,8 @@ for setting_arg in cl_args.settings:
         quit()
 
 width_height = [
-    width_height[0] * width_height_scale, width_height[1] * width_height_scale
+    int(width_height[0] * width_height_scale),
+    int(width_height[1] * width_height_scale)
 ]
 
 #Now override some depending on command line and maybe a special case

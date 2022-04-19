@@ -1,6 +1,13 @@
 # progrockdiffusion
 A command line version of [Disco Diffusion](https://github.com/alembics/disco-diffusion).
 
+# Quick note on updating:
+A new version was released today, April 5 2022. If you are trying to update you'll need to install a few additional items:
+```
+git clone https://github.com/facebookresearch/SLIP.git
+pip install json5 numexpr
+```
+
 # Hardware prerequisites
 You will need at least 16gb of RAM if not using a GPU.
 An Nvidia GPU is *highly* recommended! The speed improvement is massive.
@@ -82,6 +89,7 @@ conda create --name progrockdiffusion python=3.8
 **[All Platforms]**
 ```
 conda activate progrockdiffusion
+conda install -c anaconda git
 ```
 
 Now change to whatever base directory you want ProgRockDiffusion to go into.
@@ -98,6 +106,7 @@ cd progrockdiffusion
 ```
 git clone https://github.com/crowsonkb/guided-diffusion
 git clone https://github.com/openai/CLIP.git
+git clone https://github.com/facebookresearch/SLIP.git
 git clone https://github.com/assafshocher/ResizeRight.git
 git clone https://github.com/CompVis/latent-diffusion.git
 git clone https://github.com/CompVis/taming-transformers
@@ -145,6 +154,19 @@ sudo apt-get install ffmpeg libsm6 libxext6 -y
 **[Linux]** Finally:
 ```
 sudo apt install imagemagick
+```
+
+## Optional Animation support
+You'll need to install ffmpeg if you want to do animations.
+
+**[Windows]**
+Download from here: https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z
+
+Inside the 7z file look for ffmpeg.exe and extract it into your progrockdiffusion directory (or any directory that's in your path)
+
+**[Linux]**
+```
+sudo apt-get install ffmpeg
 ```
 
 # Use

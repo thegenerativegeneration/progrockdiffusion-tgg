@@ -190,6 +190,8 @@ RN50 = True
 RN50x4 = False
 RN50x16 = False
 RN50x64 = False
+SLIPB16 = False
+SLIPL16 = False
 cut_overview = "[12]*400+[4]*600"
 cut_innercut = "[4]*400+[12]*600"
 cut_ic_pow = 1
@@ -204,6 +206,7 @@ extract_nth_frame = 2
 intermediate_saves = 0
 add_metadata = True
 stop_early = 0
+fix_brightness_contrast = True
 adjustment_interval = 10
 high_contrast_threshold = 80
 high_contrast_adjust_amount = 0.85
@@ -223,6 +226,7 @@ low_brightness_start = 0
 low_brightness_adjust = True
 sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
 keep_unsharp = False  #@param{type: 'boolean'}
+animation_mode = "None" # "Video Input", "2D"
 
 # Command Line parse
 import argparse
@@ -259,6 +263,9 @@ To specify which CUDA device to use (advanced) by device ID (default is 0):
 
 To HIDE the settings that get added to your output PNG's metadata, use:
  {python_example} prd.py --hidemetadata
+
+To increase resolution 2x by splitting the final image and re-rendering detail int the sections, use:
+ {python_example} prd.py --gobig
 '''
 
 my_parser = argparse.ArgumentParser(
@@ -266,10 +273,12 @@ my_parser = argparse.ArgumentParser(
     description='Generate images from text prompts.',
     epilog=example_text,
     formatter_class=argparse.RawDescriptionHelpFormatter)
+
 my_parser.add_argument('--gui',
                        action='store_true',
                        required=False,
                        help='Use the PyQt5 GUI')
+
 my_parser.add_argument(
     '-s',
     '--settings',
@@ -279,21 +288,25 @@ my_parser.add_argument(
     help=
     'A settings JSON file to use, best to put in quotes. Multiples are allowed and layered in order.'
 )
+
 my_parser.add_argument('-o',
                        '--output',
                        action='store',
                        required=False,
                        help='What output directory to use within images_out')
+
 my_parser.add_argument('-p',
                        '--prompt',
                        action='append',
                        required=False,
                        help='Override the prompt')
+
 my_parser.add_argument('-i',
                        '--ignoreseed',
                        action='store_true',
                        required=False,
                        help='Ignores the random seed in the settings file')
+
 my_parser.add_argument(
     '-c',
     '--cpu',
@@ -304,6 +317,7 @@ my_parser.add_argument(
     default=False,
     const=0,
     help='Force use of CPU instead of GPU, and how many threads to run')
+
 my_parser.add_argument(
     '-g',
     '--geninit',
@@ -322,16 +336,24 @@ my_parser.add_argument('-u',
                        required=False,
                        default=False,
                        help='Use the specified init image')
+
 my_parser.add_argument('--cuda',
                        action='store',
                        required=False,
                        default='0',
                        help='Which GPU to use. Default is 0.')
+
 my_parser.add_argument(
     '--hidemetadata',
     action='store_true',
     required=False,
     help='Will prevent settings from being added to the output PNG file')
+
+my_parser.add_argument(
+    '--gobig',
+    action='store_true',
+    required=False,
+    help='After generation, the image is split into sections and re-rendered, to double the size.')
 
 cl_args = my_parser.parse_args()
 
@@ -492,6 +514,8 @@ for setting_arg in cl_args.settings:
                 extract_nth_frame = (settings_file['extract_nth_frame'])
             if is_json_key_present(settings_file, 'intermediate_saves'):
                 intermediate_saves = (settings_file['intermediate_saves'])
+            if is_json_key_present(settings_file, 'fix_brightness_contrast'):
+                fix_brightness_contrast = (settings_file['fix_brightness_contrast'])
             if is_json_key_present(settings_file, 'adjustment_interval'):
                 adjustment_interval = (settings_file['adjustment_interval'])
             if is_json_key_present(settings_file, 'high_contrast_threshold'):
@@ -545,6 +569,8 @@ for setting_arg in cl_args.settings:
                 sharpen_preset = (settings_file['sharpen_preset'])
             if is_json_key_present(settings_file, 'keep_unsharp'):
                 keep_unsharp = (settings_file['keep_unsharp'])
+            if is_json_key_present(settings_file, 'animation_mode'):
+                animation_mode = (settings_file['animation_mode'])
 
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +
@@ -580,6 +606,12 @@ gui = False
 if cl_args.gui:
     gui = True
     import prdgui
+
+letsgobig = False
+if cl_args.gobig:
+    letsgobig = True
+    n_batches = 1
+    print('Going BIG! N-batches automatically set to 1, as only 1 output is supported.')
 
 if cl_args.geninit:
     geninit = True
@@ -1081,6 +1113,7 @@ def do_run():
         display.clear_output(wait=True)
 
         # Print Frame progress if animation mode is on
+        print(f'Animation mode is {animation_mode}') #debug
         if args.animation_mode != "None":
             batchBar = tqdm(range(args.max_frames), desc="Frames")
             batchBar.n = frame_num
@@ -1190,7 +1223,7 @@ def do_run():
             #sample_prompt += additional_prompts
 
             if (print_sample_prompt):
-                print(f' Sample Prompt for sample {s}: {sample_prompt}')
+                print(f' Prompt for step {s}: {sample_prompt}')
 
             model_stats = []
             for clip_model in clip_models:
@@ -1522,7 +1555,10 @@ def do_run():
                                                       str(cut_ic_pow))
 
                                 if j % args.display_rate == 0 or cur_t == -1:
-                                    image.save('progress.png')
+                                    if cl_args.cuda != '0':
+                                        image.save(f"progress{cl_args.cuda}.png") # note the GPU being used if it's not 0, so it won't overwrite other GPU's work
+                                    else:
+                                        image.save('progress.png')
                                     display.clear_output(wait=True)
                                     #display.display(display.Image('progress.png'))
                                 if args.steps_per_checkpoint is not None:
@@ -1549,6 +1585,7 @@ def do_run():
                                     if frame_num == 0:
                                         save_settings()
                                     if args.animation_mode != "None":
+                                        print('saving prev frame for animation') #debug
                                         image.save('prevFrame.png')
                                     if args.sharpen_preset != "Off" and animation_mode == "None":
                                         imgToSharpen = image
@@ -1559,11 +1596,12 @@ def do_run():
                                     else:
                                         image.save(f'{batchFolder}/{filename}',
                                                    pnginfo=metadata)
-                                    print('Incrementing seed by one.')
-                                    seed = seed + 1
-                                    np.random.seed(seed)
-                                    random.seed(seed)
-                                    torch.manual_seed(seed)
+                                    if args.animation_mode == "None" and letsgobig == False:
+                                        print('Incrementing seed by one.')
+                                        seed = seed + 1
+                                        np.random.seed(seed)
+                                        random.seed(seed)
+                                        torch.manual_seed(seed)
                                     # if frame_num != args.max_frames-1:
                                     #   display.clear_output()
 
@@ -1650,7 +1688,7 @@ def do_run():
                     #print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
-                    if s % adjustment_interval == 0:
+                    if (s % adjustment_interval == 0) and (fix_brightness_contrast == True):
                         if (high_brightness_adjust
                                 and s > high_brightness_start
                                 and brightness > high_brightness_threshold):
@@ -1766,6 +1804,7 @@ def save_settings():
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
         'cut_icgray_p': str(cut_icgray_p),
+        'animation_mode': animation_mode,
         'key_frames': key_frames,
         'angle': angle,
         'zoom': zoom,
@@ -1774,6 +1813,7 @@ def save_settings():
         'video_init_path': video_init_path,
         'extract_nth_frame': extract_nth_frame,
         'stop_early': stop_early,
+        'fix_brightness_contrast': fix_brightness_contrast,
         'adjustment_interval': adjustment_interval,
         'high_contrast_threshold': high_contrast_threshold,
         'high_contrast_adjust_amount': high_contrast_adjust_amount,
@@ -3398,12 +3438,123 @@ if model_config['use_fp16']:
 
 gc.collect()
 torch.cuda.empty_cache()
+
+# FUNCTIONS FOR GO BIG MODE
+global slices_todo
+slices_todo = 4 # Number of chunks to slice up from the original image
+
+# Input is an image, return image with mask.png added as an alpha channel
+def addalpha(im, mask):
+    imr, img, imb, ima = im.split()
+    mmr, mmg, mmb, mma = mask.split()
+    im = Image.merge('RGBA', [imr, img, imb, mma]) # we want the RGB from the original, but the transparency from the mask
+    return(im)
+
+# take a source image and layer in the slices on top
+def mergeimgs(source, slices):
+    source.convert("RGBA")
+    width, height = source.size
+    #overlap = int(height / slices_todo / 4)
+    slice_height = int(height / slices_todo)
+    slice_height = 64 * math.ceil(slice_height / 64) #round slice height up to the nearest 64
+    paste_y = 0
+    for slice in slices:
+        source.alpha_composite(slice, (0,paste_y))
+        paste_y += slice_height
+    return source
+
+# Slices an image into the configured number of chunks. Overlap is a quarter of the size of a chunk
+def slice(source):
+    width, height = source.size
+    overlap = 64 #int(height / slices_todo / 4)
+    slice_height = int(height / slices_todo)
+    slice_height = 64 * math.ceil(slice_height / 64) #round slice height up to the nearest 64
+    slice_height += overlap
+    print(f'rounded slice_height is {slice_height} with overlap')
+    i = 0
+    slices = []
+    x = 0
+    y = 0
+    bottomy = slice_height
+    while i < slices_todo:
+        slices.append(source.crop((x, y, width, bottomy)))
+        y += slice_height - overlap
+        bottomy = y + slice_height
+        i += 1
+    return(slices)
+
+
+
+# FINALLY DO THE RUN
 try:
     if (gui):
         print("running with gui")
         prdgui.run_gui(do_run, side_x, side_y)
     else:
         do_run()
+        if letsgobig:
+            current_time = datetime.now().strftime('%y%m%d-%H%M%S_%f')
+            # Resize initial progress.png to new size
+            if cl_args.cuda != '0': #handle if a different GPU is in use
+                progress_image = (f'progress{cl_args.cuda}.png')
+                slice_image = (f'slice{cl_args.cuda}.png')
+                original_output_image = (f'{batchFolder}/{batch_name}_original_output_{cl_args.cuda}_{current_time}.png')
+                final_output_image = (f'{batchFolder}/{batch_name}_final_output_{cl_args.cuda}_{current_time}.png')
+            else:
+                progress_image = 'progress.png'
+                slice_image = 'slice.png'
+                original_output_image = (f'{batchFolder}/{batch_name}_original_output_{current_time}.png')
+                final_output_image = (f'{batchFolder}/{batch_name}_final_output_{current_time}.png')
+            input_image = Image.open(progress_image).convert('RGBA')
+            input_image.save(original_output_image)
+            reside_x = side_x * 2
+            reside_y = side_y * 2
+            source_image = input_image.resize((reside_x, reside_y), Image.LANCZOS)
+            input_image.close()
+            # Slice source_image into 4 overlapping slices
+            slices = slice(source_image)
+            # Run PRD again for each slice, with init image paramaters, etc.
+            i = 1 # just to number the slices as they save
+            betterslices = []
+            for chunk in slices:
+                # Reset underlying systems for another run
+                print('Prepping model for next run...')
+                model, diffusion = create_model_and_diffusion(**model_config)
+                print(f'{model_path}/{diffusion_model}.pt')
+                model.load_state_dict(
+                    torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
+                model.requires_grad_(False).eval().to(device)
+                for name, param in model.named_parameters():
+                    if 'qkv' in name or 'norm' in name or 'proj' in name:
+                        param.requires_grad_()
+                if model_config['use_fp16']:
+                    model.convert_to_fp16()
+                gc.collect()
+                torch.cuda.empty_cache()
+                #no do the next run
+                chunk.save(slice_image)
+                args.init_image = slice_image
+                args.skip_steps = int(steps * .65)
+                args.side_x, args.side_y = chunk.size
+                fix_brightness_contrast = False
+                do_run()
+                print(f'Finished run, grabbing {progress_image} and adding it to betterslices.')
+                resultslice = Image.open(progress_image).convert('RGBA')
+                #resultslice.save(f'slice-upscaled{i}.png')
+                betterslices.append(resultslice.copy())
+                resultslice.close() # hopefully this will allow subsequent images to actually save.
+                i += 1
+            # For each slice, use addalpha to add an alpha mask
+            i = 1 # start at 1 in the list instead of 0, because we don't need/want a mask on the first (0) image
+            mask = Image.open('mask.png').convert('RGBA').resize(betterslices[0].size) #resize our mask to match - TODO generate this automatically
+            while i < slices_todo:
+                betterslices[i] = addalpha(betterslices[i], mask)
+                i += 1
+            # Once we have all our images, mergeimgs back onto source.png, then save
+            final_output = mergeimgs(source_image, betterslices)
+            final_output.save(final_output_image)
+            print(f'\n\nGO BIG is complete!\n\n ***** NOTE *****\nYour output is saved as {final_output_image}!')
+
 except KeyboardInterrupt:
     pass
 finally:

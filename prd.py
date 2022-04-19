@@ -155,7 +155,7 @@ tv_scale = 0
 range_scale = 150
 sat_scale = 0
 n_batches = 1
-display_rate = 50
+display_rate = 20
 cutn_batches = 4
 max_frames = 10000
 interp_spline = "Linear"
@@ -227,6 +227,7 @@ low_brightness_adjust = True
 sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
 keep_unsharp = False  #@param{type: 'boolean'}
 animation_mode = "None" # "Video Input", "2D"
+gobig_orientation = "vertical"
 
 # Command Line parse
 import argparse
@@ -571,6 +572,8 @@ for setting_arg in cl_args.settings:
                 keep_unsharp = (settings_file['keep_unsharp'])
             if is_json_key_present(settings_file, 'animation_mode'):
                 animation_mode = (settings_file['animation_mode'])
+            if is_json_key_present(settings_file, 'gobig_orientation'):
+                gobig_orientation = (settings_file['gobig_orientation'])
 
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +
@@ -607,8 +610,14 @@ if cl_args.gui:
     import prdgui
 
 letsgobig = False
+gobig_horizontal = False
+gobig_vertical = False
 if cl_args.gobig:
     letsgobig = True
+    if gobig_orientation == "horizontal": # default is vertical, if the settings file says otherwise, change it
+        gobig_horizontal = True
+    else:
+        gobig_vertical = True
     n_batches = 1
     print('Going BIG! N-batches automatically set to 1, as only 1 output is supported.')
 
@@ -1832,6 +1841,7 @@ def save_settings():
         'low_brightness_adjust': low_brightness_adjust,
         'sharpen_preset': sharpen_preset,
         'keep_unsharp': keep_unsharp,
+        'gobig_orientation': gobig_orientation,
     }
     # print('Settings:', setting_list)
     with open(f"{batchFolder}/{batch_name}_{batchNum}_settings.json",
@@ -3442,7 +3452,7 @@ torch.cuda.empty_cache()
 global slices_todo
 slices_todo = 4 # Number of chunks to slice up from the original image
 
-# Input is an image, return image with mask.png added as an alpha channel
+# Input is an image, return image with mask added as an alpha channel
 def addalpha(im, mask):
     imr, img, imb, ima = im.split()
     mmr, mmg, mmb, mma = mask.split()
@@ -3453,36 +3463,57 @@ def addalpha(im, mask):
 def mergeimgs(source, slices):
     source.convert("RGBA")
     width, height = source.size
-    #overlap = int(height / slices_todo / 4)
-    slice_height = int(height / slices_todo)
-    slice_height = 64 * math.ceil(slice_height / 64) #round slice height up to the nearest 64
-    paste_y = 0
-    for slice in slices:
-        source.alpha_composite(slice, (0,paste_y))
-        paste_y += slice_height
+    if gobig_horizontal == True:
+        slice_height = int(height / slices_todo)
+        slice_height = 64 * math.ceil(slice_height / 64) #round slice height up to the nearest 64
+        paste_y = 0
+        for slice in slices:
+            source.alpha_composite(slice, (0,paste_y))
+            paste_y += slice_height
+    if gobig_vertical == True:
+        slice_width = int(width / slices_todo)
+        slice_width = 64 * math.ceil(slice_width / 64) #round slice height up to the nearest 64
+        paste_x = 0
+        for slice in slices:
+            source.alpha_composite(slice, (paste_x,0))
+            paste_x += slice_width
     return source
 
 # Slices an image into the configured number of chunks. Overlap is a quarter of the size of a chunk
 def slice(source):
     width, height = source.size
     overlap = 64 #int(height / slices_todo / 4)
-    slice_height = int(height / slices_todo)
-    slice_height = 64 * math.ceil(slice_height / 64) #round slice height up to the nearest 64
-    slice_height += overlap
-    print(f'rounded slice_height is {slice_height} with overlap')
-    i = 0
-    slices = []
-    x = 0
-    y = 0
-    bottomy = slice_height
-    while i < slices_todo:
-        slices.append(source.crop((x, y, width, bottomy)))
-        y += slice_height - overlap
-        bottomy = y + slice_height
-        i += 1
-    return(slices)
-
-
+    if gobig_horizontal == True:
+        slice_height = int(height / slices_todo)
+        slice_height = 64 * math.ceil(slice_height / 64) #round slice height up to the nearest 64
+        slice_height += overlap
+        print(f'rounded slice_height is {slice_height} with overlap')
+        i = 0
+        slices = []
+        x = 0
+        y = 0
+        bottomy = slice_height
+        while i < slices_todo:
+            slices.append(source.crop((x, y, width, bottomy)))
+            y += slice_height - overlap
+            bottomy = y + slice_height
+            i += 1
+    if gobig_vertical == True:
+        slice_width = int(width / slices_todo)
+        slice_width = 64 * math.ceil(slice_width / 64) #round slice height up to the nearest 64
+        slice_width += overlap
+        print(f'rounded slice_width is {slice_width} with overlap')
+        i = 0
+        slices = []
+        x = 0
+        y = 0
+        edgex = slice_width
+        while i < slices_todo:
+            slices.append(source.crop((x, y, edgex, height)))
+            x += slice_width - overlap
+            edgex = x + slice_width
+            i += 1
+    return (slices)
 
 # FINALLY DO THE RUN
 try:
@@ -3544,8 +3575,11 @@ try:
                 resultslice.close() # hopefully this will allow subsequent images to actually save.
                 i += 1
             # For each slice, use addalpha to add an alpha mask
+            if gobig_horizontal:
+                mask = Image.open('mask.png').convert('RGBA').resize(betterslices[0].size) #resize our mask to match - TODO generate this automatically
+            if gobig_vertical:
+                mask = Image.open('maskv.png').convert('RGBA').resize(betterslices[0].size) #resize our mask to match - TODO generate this automatically
             i = 1 # start at 1 in the list instead of 0, because we don't need/want a mask on the first (0) image
-            mask = Image.open('mask.png').convert('RGBA').resize(betterslices[0].size) #resize our mask to match - TODO generate this automatically
             while i < slices_todo:
                 betterslices[i] = addalpha(betterslices[i], mask)
                 i += 1

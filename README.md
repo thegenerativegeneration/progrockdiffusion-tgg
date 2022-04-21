@@ -1,4 +1,4 @@
-# progrockdiffusion
+# Prog Rock Diffusion
 A command line version of [Disco Diffusion](https://github.com/alembics/disco-diffusion) for still image generation.
 *Animations are not currently supported.*
 

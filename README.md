@@ -12,6 +12,7 @@ In addition to Disco Diffusion's great features, Prog Rock has the following ben
 - Some variables can be randomized to help you explore the possible outputs of a prompt
 - If you put \_artist\_ in your prompt, it will be replaced with a randomly selected artist
 - Adding --gobig to your command will automatically upscale the result by slicing it and re-rendering those slices
+- Optional automatic brightness and contrast fixing (save you from those blown-out results!)
 
 # Table of Contents
 

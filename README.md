@@ -11,8 +11,16 @@ In addition to Disco Diffusion's great features, Prog Rock has the following ben
 - Multiple partial settings files are supported, allowing you to layer settings
 - Some variables can be randomized to help you explore the possible outputs of a prompt
 - If you put \_artist\_ in your prompt, it will be replaced with a randomly selected artist
+- Adding --gobig to your command will automatically upscale the result by slicing it and re-rendering those slices
 
-# Hardware requirements
+# Table of Contents
+
+- [REQUIREMENTS](requirements)
+- INSTALL
+- UPDATE
+- TIPS
+
+# [Requirements]
 GPU: An Nvidia GPU is *highly* recommended! The speed improvement is massive. 8gb is probably the minimum amount of GPU memory. This author has an RTX 3080 with 10gb and it runs fairly well, but some advanced features are not possible with "only" 10gb.
 
 As for AMD cards, I have not had a chance to test one. If you're interested in helping me figure out if it's possible, drop me a note in the issues page.

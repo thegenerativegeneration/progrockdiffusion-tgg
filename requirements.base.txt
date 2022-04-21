@@ -15,3 +15,4 @@ pandas == 1.4.1
 opencv-python-headless == 4.5.5.64
 json5 == 0.9.6
 numexpr == 2.8.1
+wandb == 0.12.14

@@ -111,10 +111,10 @@ from tqdm import tqdm
 sys.path.append(f'{root_path}/ResizeRight')
 sys.path.append(f'{root_path}/CLIP')
 sys.path.append(f'{root_path}/guided-diffusion')
-sys.path.append(f'{root_path}/SLIP')
+#sys.path.append(f'{root_path}/SLIP')
 import clip
 from resize_right import resize
-from models import SLIP_VITB16, SLIP, SLIP_VITL16
+#from models import SLIP_VITB16, SLIP, SLIP_VITL16
 from guided_diffusion.script_util import create_model_and_diffusion, model_and_diffusion_defaults
 from datetime import datetime
 import numpy as np
@@ -190,8 +190,8 @@ RN50 = True
 RN50x4 = False
 RN50x16 = False
 RN50x64 = False
-SLIPB16 = False
-SLIPL16 = False
+#SLIPB16 = False
+#SLIPL16 = False
 cut_overview = "[12]*400+[4]*600"
 cut_innercut = "[4]*400+[12]*600"
 cut_ic_pow = 1
@@ -487,10 +487,10 @@ for setting_arg in cl_args.settings:
                 RN50x16 = (settings_file['RN50x16'])
             if is_json_key_present(settings_file, 'RN50x64'):
                 RN50x64 = (settings_file['RN50x64'])
-            if is_json_key_present(settings_file, 'SLIPB16'):
-                SLIPB16 = (settings_file['SLIPB16'])
-            if is_json_key_present(settings_file, 'SLIPL16'):
-                SLIPL16 = (settings_file['SLIPL16'])
+#            if is_json_key_present(settings_file, 'SLIPB16'):
+#                SLIPB16 = (settings_file['SLIPB16'])
+#            if is_json_key_present(settings_file, 'SLIPL16'):
+#                SLIPL16 = (settings_file['SLIPL16'])
             if is_json_key_present(settings_file, 'cut_overview'):
                 cut_overview = (settings_file['cut_overview'])
             if is_json_key_present(settings_file, 'cut_innercut'):
@@ -1123,7 +1123,7 @@ stop_on_next_loop = False  # Make sure GPU memory doesn't get corrupted from can
 
 def do_run():
     seed = args.seed
-    print(range(args.start_frame, args.max_frames))
+    #print(range(args.start_frame, args.max_frames))
     for frame_num in range(args.start_frame, args.max_frames):
         if stop_on_next_loop:
             break
@@ -1131,7 +1131,7 @@ def do_run():
         display.clear_output(wait=True)
 
         # Print Frame progress if animation mode is on
-        print(f'Animation mode is {animation_mode}') #debug
+        #print(f'Animation mode is {animation_mode}') #debug
         if args.animation_mode != "None":
             batchBar = tqdm(range(args.max_frames), desc="Frames")
             batchBar.n = frame_num
@@ -1208,7 +1208,7 @@ def do_run():
         else:
             frame_prompt = []
 
-        print(args.image_prompts_series)
+        #print(args.image_prompts_series)
         if args.image_prompts_series is not None and frame_num >= len(
                 args.image_prompts_series):
             image_prompt = args.image_prompts_series[-1]
@@ -1226,7 +1226,6 @@ def do_run():
         model_stats = []
 
         def do_weights(s):
-            #print(" do_weights")
             nonlocal model_stats, prev_sample_prompt
             sample_prompt = []
 
@@ -1440,13 +1439,10 @@ def do_run():
                 if isinstance(args.clamp_max, list):
                     clamp_max = ease(args.clamp_max, timestep)
                 elif isinstance(args.clamp_max, str):
-                    #print(args.clamp_max)
                     clamp_max = float(numexpr.evaluate(args.clamp_max))
-                    #print(f"\nresult: {clamp_max}\n")
                 else:
                     clamp_max = args.clamp_max
 
-                #print(f"{timestep}: {clamp_max}")
                 return grad * magnitude.clamp(
                     max=args.clamp_max
                 ) / magnitude  #min=-0.02, min=-clamp_max,
@@ -1475,7 +1471,6 @@ def do_run():
                 init = regen_perlin()
 
             def do_sample_fn(_init_image, _skip):
-                #print(f" do_sample_fn {_skip}")
                 if args.sampling_mode == 'ddim':
                     samples = sample_fn(
                         model,
@@ -1760,8 +1755,8 @@ def do_run():
 
             with image_display:
                 if args.sharpen_preset != "Off" and animation_mode == "None":
-                    print('Starting Diffusion Sharpening...')
-                    do_superres(imgToSharpen, f'{batchFolder}/{filename}')
+                    print('Skipping Diffusion Sharpening (not currently supported)...')
+                    #do_superres(imgToSharpen, f'{batchFolder}/{filename}')
                     display.clear_output()
 
             plt.plot(np.array(loss_values), 'r')
@@ -1816,8 +1811,8 @@ def save_settings():
         'RN50x4': RN50x4,
         'RN50x16': RN50x16,
         'RN50x64': RN50x64,
-        'SLIPB16': SLIPB16,
-        'SLIPL16': SLIPL16,
+#        'SLIPB16': SLIPB16,
+#        'SLIPL16': SLIPL16,
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
@@ -1853,7 +1848,6 @@ def save_settings():
         'keep_unsharp': keep_unsharp,
         'gobig_orientation': gobig_orientation,
     }
-    # print('Settings:', setting_list)
     with open(f"{batchFolder}/{batch_name}_{batchNum}_settings.json",
               "w+",
               encoding="utf-8") as f:  #save settings
@@ -2277,7 +2271,7 @@ class DDIMSampler(object):
         x_prev = a_prev.sqrt() * pred_x0 + dir_xt + noise
         return x_prev, pred_x0
 
-
+"""
 def download_models(mode):
 
     if mode == "superresolution":
@@ -2303,7 +2297,7 @@ def download_models(mode):
 
     else:
         raise NotImplementedError
-
+"""
 
 def load_model_from_config(config, ckpt):
     print(f"Loading model from {ckpt}")
@@ -2316,13 +2310,13 @@ def load_model_from_config(config, ckpt):
     model.eval()
     return {"model": model}, global_step
 
-
+"""
 def get_model(mode):
     path_conf, path_ckpt = download_models(mode)
     config = OmegaConf.load(path_conf)
     model, step = load_model_from_config(config, path_ckpt)
     return model
-
+"""
 
 def get_custom_cond(mode):
     dest = "data/example_conditioning"
@@ -2616,11 +2610,10 @@ def make_convolutional_sample(batch,
     return log
 
 
-sr_diffMode = 'superresolution'
-sr_model = get_model('superresolution')
+#sr_diffMode = 'superresolution'
+#sr_model = get_model('superresolution')
 
-
-def do_superres(img, filepath):
+"""def do_superres(img, filepath):
     if args.sharpen_preset == 'Faster':
         sr_diffusion_steps = "25"
         sr_pre_downsample = '1/2'
@@ -2659,7 +2652,7 @@ def do_superres(img, filepath):
     if downsample_rate != 1:
         # print(f'Downsampling from [{width_og}, {height_og}] to [{width_downsampled_pre}, {height_downsampled_pre}]')
         im_og = im_og.resize((width_downsampled_pre, height_downsampled_pre),
-                             Image.LANCZOS)
+                             Image.Resampling.LANCZOS)
         # im_og.save('/content/temp.png')
         # filepath = '/content/temp.png'
 
@@ -2687,7 +2680,7 @@ def do_superres(img, filepath):
     height_downsampled_post = height // downsample_rate
 
     if sr_downsample_method == 'Lanczos':
-        aliasing = Image.LANCZOS
+        aliasing = Image.Resampling.LANCZOS
     else:
         aliasing = Image.NEAREST
 
@@ -2703,7 +2696,7 @@ def do_superres(img, filepath):
     a.save(filepath)
     return
     print(f'Processing finished!')
-
+"""
 
 """# 2. Diffusion and CLIP model settings"""
 
@@ -2757,9 +2750,7 @@ if diffusion_model == '256x256_diffusion_uncond':
     elif os.path.exists(
             model_256_path
     ) and not check_model_SHA or model_256_downloaded == True:
-        print(
-            '256 Model already downloaded, check check_model_SHA if the file is corrupt'
-        )
+        pass
     else:
         print("256 Model downloading, this might take a while...")
         #!wget --continue {model_256_link} -P {model_path}
@@ -2782,13 +2773,10 @@ elif diffusion_model == '512x512_diffusion_uncond_finetune_008100':
     elif os.path.exists(
             model_512_path
     ) and not check_model_SHA or model_512_downloaded == True:
-        print(
-            '512 Model already downloaded, check check_model_SHA if the file is corrupt'
-        )
+        pass
     else:
         #!wget --continue {model_512_link} -P {model_path}
-        print(model_path)
-        print("512 Model downloading, this might take a while...")
+        print(f"512 Model downloading to {model_path}, this might take a while...")
         urllib.request.urlretrieve(model_512_link, model_512_path)
         model_512_downloaded = True
 
@@ -2811,9 +2799,7 @@ if use_secondary_model == True:
     elif os.path.exists(
             model_secondary_path
     ) and not check_model_SHA or model_secondary_downloaded == True:
-        print(
-            'Secondary Model already downloaded, check check_model_SHA if the file is corrupt'
-        )
+        pass
     else:
         #!wget --continue {model_secondary_link} -P {model_path}
         print('Secondary Model downloading, this might take a while...')
@@ -2901,6 +2887,7 @@ if RN101 is True:
         clip.load('RN101',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 
+"""
 if SLIPB16:
     SLIPB16model = SLIP_VITB16(ssl_mlp_dim=4096, ssl_emb_dim=256)
     if not os.path.exists(f'{model_path}/slip_base_100ep.pt'):
@@ -2934,7 +2921,7 @@ if SLIPL16:
     SLIPL16model.requires_grad_(False).eval().to(device)
 
     clip_models.append(SLIPL16model)
-
+"""
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])
 lpips_model = lpips.LPIPS(net='vgg').to(device)
@@ -3221,11 +3208,6 @@ if geninit:
         (steps * geninitamount)
     ]  # Save a checkpoint at 20% for use as a later init image
 intermediates_in_subfolder = True  #@param{type: 'boolean'}
-#@markdown Intermediate steps will save a copy at your specified intervals. You can either format it as a single integer or a list of specific steps
-
-#@markdown A value of `2` will save a copy at 33% and 66%. 0 will save none.
-
-#@markdown A value of `[5, 9, 34, 45]` will save at steps 5, 9, 34, and 45. (Make sure to include the brackets)
 
 if type(intermediate_saves) is not list:
     if intermediate_saves:
@@ -3242,68 +3224,6 @@ if intermediate_saves and intermediates_in_subfolder is True:
     partialFolder = f'{batchFolder}/partials'
     createPath(partialFolder)
 
-    #@markdown ---
-
-#@markdown ####**SuperRes Sharpening:**
-#@markdown *Sharpen each image using latent-diffusion. Does not run in animation mode. `keep_unsharp` will save both versions.*
-#sharpen_preset = 'Slow'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
-#keep_unsharp = False  #@param{type: 'boolean'}
-
-if sharpen_preset != 'Off' and keep_unsharp is True:
-    unsharpenFolder = f'{batchFolder}/unsharpened'
-    createPath(unsharpenFolder)
-
-    #@markdown ---
-
-#@markdown ####**Advanced Settings:**
-#@markdown *There are a few extra advanced settings available if you double click this cell.*
-
-#@markdown *Perlin init will replace your init, so uncheck if using one.*
-
-#perlin_init = False  #@param{type: 'boolean'}
-#perlin_mode = 'mixed' #@param ['mixed', 'color', 'gray']
-#set_seed = 'random_seed' #@param{type: 'string'}
-#eta = 0.8#@param{type: 'number'}
-#clamp_grad = True #@param{type: 'boolean'}
-#clamp_max = 0.05 #@param{type: 'number'}
-
-### EXTRA ADVANCED SETTINGS:
-#randomize_class = True
-#clip_denoised = False
-#fuzzy_prompt = False
-#rand_mag = 0.05
-
-#@markdown ---
-
-#@markdown ####**Cutn Scheduling:**
-#@markdown Format: `[40]*400+[20]*600` = 40 cuts for the first 400 /1000 steps, then 20 for the last 600/1000
-
-#@markdown cut_overview and cut_innercut are cumulative for total cutn on any given step. Overview cuts see the entire image and are good for early structure, innercuts are your standard cutn.
-
-#cut_overview = "[12]*400+[4]*600" #@param {type: 'string'}
-#cut_innercut ="[4]*400+[12]*600"#@param {type: 'string'}
-#cut_ic_pow = 1#@param {type: 'number'}
-#cut_icgray_p = "[0.2]*400+[0]*600"#@param {type: 'string'}
-
-# REMOVED FOR COMMAND LINE ARGS
-"""###Prompts
-`animation_mode: None` will only use the first set. `animation_mode: 2D / Video` will run through them per the set frames and hold on the last one.
-
-text_prompts = {
-    0: ["Cinematic dark alley with rain and puddles, by Leif Heanzo, thriller book cover."],
-    # 100: ["This set of prompts start at frame 100", "This prompt has weight five:5"],
-}
-
-image_prompts = {
-    # 0:['ImagePromptsWorkButArentVeryGood.png:2',],
-}
-"""
-"""# 4. Diffuse!"""
-
-#@title Do the Run!
-#@markdown `n_batches` ignored with animation modes.
-#display_rate =  300 #@param{type: 'number'}
-#n_batches =  10 #@param{type: 'number'}
 
 batch_size = 1
 
@@ -3313,9 +3233,6 @@ def move_files(start_num, end_num, old_folder, new_folder):
         old_file = old_folder + f'/{batch_name}({batchNum})_{i:04}.png'
         new_file = new_folder + f'/{batch_name}({batchNum})_{i:04}.png'
         os.rename(old_file, new_file)
-
-
-#@markdown ---
 
 resume_run = False  #@param{type: 'boolean'}
 run_to_resume = 'latest'  #@param{type: 'string'}
@@ -3443,9 +3360,8 @@ args = {
 
 args = SimpleNamespace(**args)
 
-print('Prepping model...')
 model, diffusion = create_model_and_diffusion(**model_config)
-print(f'{model_path}/{diffusion_model}.pt')
+print(f'Prepping model: {model_path}/{diffusion_model}.pt')
 model.load_state_dict(
     torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
 model.requires_grad_(False).eval().to(device)
@@ -3460,7 +3376,7 @@ torch.cuda.empty_cache()
 
 # FUNCTIONS FOR GO BIG MODE
 global slices_todo
-slices_todo = 4 # Number of chunks to slice up from the original image
+slices_todo = 5 # Number of chunks to slice up from the original image
 
 # Input is an image, return image with mask added as an alpha channel
 def addalpha(im, mask):
@@ -3560,7 +3476,6 @@ try:
                 # Reset underlying systems for another run
                 print('Prepping model for next run...')
                 model, diffusion = create_model_and_diffusion(**model_config)
-                print(f'{model_path}/{diffusion_model}.pt')
                 model.load_state_dict(
                     torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
                 model.requires_grad_(False).eval().to(device)

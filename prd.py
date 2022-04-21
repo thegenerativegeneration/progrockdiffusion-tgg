@@ -111,7 +111,7 @@ from tqdm import tqdm
 sys.path.append(f'{root_path}/ResizeRight')
 sys.path.append(f'{root_path}/CLIP')
 sys.path.append(f'{root_path}/guided-diffusion')
-sys.path.append(f'{root_path}/SLIP')
+#sys.path.append(f'{root_path}/SLIP')
 import clip
 from resize_right import resize
 from models import SLIP_VITB16, SLIP, SLIP_VITL16
@@ -190,8 +190,8 @@ RN50 = True
 RN50x4 = False
 RN50x16 = False
 RN50x64 = False
-SLIPB16 = False
-SLIPL16 = False
+#SLIPB16 = False
+#SLIPL16 = False
 cut_overview = "[12]*400+[4]*600"
 cut_innercut = "[4]*400+[12]*600"
 cut_ic_pow = 1
@@ -487,10 +487,10 @@ for setting_arg in cl_args.settings:
                 RN50x16 = (settings_file['RN50x16'])
             if is_json_key_present(settings_file, 'RN50x64'):
                 RN50x64 = (settings_file['RN50x64'])
-            if is_json_key_present(settings_file, 'SLIPB16'):
-                SLIPB16 = (settings_file['SLIPB16'])
-            if is_json_key_present(settings_file, 'SLIPL16'):
-                SLIPL16 = (settings_file['SLIPL16'])
+ #           if is_json_key_present(settings_file, 'SLIPB16'):
+ #               SLIPB16 = (settings_file['SLIPB16'])
+ #           if is_json_key_present(settings_file, 'SLIPL16'):
+ #               SLIPL16 = (settings_file['SLIPL16'])
             if is_json_key_present(settings_file, 'cut_overview'):
                 cut_overview = (settings_file['cut_overview'])
             if is_json_key_present(settings_file, 'cut_innercut'):
@@ -1816,8 +1816,8 @@ def save_settings():
         'RN50x4': RN50x4,
         'RN50x16': RN50x16,
         'RN50x64': RN50x64,
-        'SLIPB16': SLIPB16,
-        'SLIPL16': SLIPL16,
+#        'SLIPB16': SLIPB16,
+#        'SLIPL16': SLIPL16,
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
@@ -2901,6 +2901,7 @@ if RN101 is True:
         clip.load('RN101',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 
+"""
 if SLIPB16:
     SLIPB16model = SLIP_VITB16(ssl_mlp_dim=4096, ssl_emb_dim=256)
     if not os.path.exists(f'{model_path}/slip_base_100ep.pt'):
@@ -2934,7 +2935,7 @@ if SLIPL16:
     SLIPL16model.requires_grad_(False).eval().to(device)
 
     clip_models.append(SLIPL16model)
-
+"""
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])
 lpips_model = lpips.LPIPS(net='vgg').to(device)

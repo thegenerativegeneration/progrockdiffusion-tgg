@@ -3398,7 +3398,7 @@ def mergeimgs(source, slices):
             paste_y += slice_height
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.ceil(slice_width / 64) #round slice height up to the nearest 64
+        slice_width = 64 * math.ceil(slice_width / 64) #round slice width up to the nearest 64
         paste_x = 0
         for slice in slices:
             source.alpha_composite(slice, (paste_x,0))
@@ -3426,7 +3426,7 @@ def slice(source):
             i += 1
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.ceil(slice_width / 64) #round slice height up to the nearest 64
+        slice_width = 64 * math.ceil(slice_width / 64) #round slice width up to the nearest 64
         slice_width += overlap
         print(f'rounded slice_width is {slice_width} with overlap')
         i = 0

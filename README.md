@@ -16,26 +16,22 @@ In addition to Disco Diffusion's great features, Prog Rock has the following ben
 # Table of Contents
 
 - [REQUIREMENTS](#requirements)
-- INSTALL
-- UPDATE
-- TIPS
+- [INSTALL](#installation)
+- [UPDATE](#update)
+- [HOW-TO USE & EXAMPLES](#how-to)
 
 # [Requirements]
-GPU: An Nvidia GPU is *highly* recommended! The speed improvement is massive. 8gb is probably the minimum amount of GPU memory. This author has an RTX 3080 with 10gb and it runs fairly well, but some advanced features are not possible with "only" 10gb.
+- GPU: An Nvidia GPU is *highly* recommended! The speed improvement is massive. 8gb is probably the minimum amount of GPU memory. This author has an RTX 3080 with 10gb and it runs fairly well, but some advanced features are not possible with "only" 10gb. As for AMD cards, I have not had a chance to test one. If you're interested in helping me figure out if it's possible, drop me a note in the issues page.
+- CPU: For CPU mode, you will need at least 16gb of RAM.
+- STORAGE: you'll need at least 40gb of free disk space, depending on which models you enable.
 
-As for AMD cards, I have not had a chance to test one. If you're interested in helping me figure out if it's possible, drop me a note in the issues page.
-
-CPU: For CPU mode, you will need at least 16gb of RAM.
-
-STORAGE: you'll need at least 40gb of free disk space, depending on which models you enable.
-
-# Installation
+# [Installation]
 Follow the appropriate guide for your platform:
 ## [Linux](INSTALL-Linux.md)
 ## [Windows](INSTALL-Windows.md)
 ## [MacOS](INSTALL-MacOS.md)
 
-# Use
+# [HOW-TO]
 
 NOTE: On your first run it might appear to hang. Let it go for a good while, though, as it might just be downloading models.
 Somtimes there is no feedback during the download process (why? Who knows)

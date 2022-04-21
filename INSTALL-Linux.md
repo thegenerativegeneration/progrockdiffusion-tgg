@@ -14,7 +14,7 @@ sudo apt install git nano
 
 ## Install Python
 ```
-apt-get -y install python3
+sudo apt-get -y install python3
 ```
 
 Install pip:

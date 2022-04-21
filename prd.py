@@ -715,7 +715,6 @@ with open('artists.txt', encoding="utf-8") as f:
 # and multiple prompts that come in at a certain step. Sigh...
 artist_change = False
 for k, v in text_prompts.items():
-    print(type(v))
     if type(v) == list:
         newprompts = []
         for prompt in v:

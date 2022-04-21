@@ -1,5 +1,4 @@
 clip @ git+https://github.com/openai/CLIP.git@40f5484c1c74edd83cb9cf687c6ab92b28d8b656
-SLIP @ https://github.com/facebookresearch/SLIP.git
 guided-diffusion @ git+https://github.com/crowsonkb/guided-diffusion.git@77db72935820a00d3a28737b9be322a39edcd24f
 latent-diffusion @ git+https://github.com/CompVis/latent-diffusion.git@main
 taming-transformers @ git+https://github.com/CompVis/taming-transformers.git@master
@@ -15,3 +14,4 @@ pandas == 1.4.1
 opencv-python-headless == 4.5.5.64
 json5 == 0.9.6
 numexpr == 2.8.1
+wandb == 0.12.14

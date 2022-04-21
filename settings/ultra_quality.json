@@ -1,0 +1,15 @@
+// enables high quality settings (add to or adjust as needed!)
+// Also increases the output resolution by 50%
+{
+    "width_height_scale": 1.5,
+    "ViTB32": true,
+    "ViTB16": false,
+    "ViTL14": true,
+    "RN101": true,
+    "RN50": false,
+    "RN50x4": true,
+    "RN50x16": false,
+    "RN50x64": false,
+    "cut_overview": "[35]*400+[5]*600",
+    "cut_innercut": "[5]*400+[35]*600",
+}

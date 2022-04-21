@@ -1,0 +1,17 @@
+// Examples of the settings that can be randomized.
+// Note that _artist_ in the prompt will be replaced by a random artist from artists.txt in the main folder
+{
+    "text_prompts": {
+            "0": [
+                "The Big Sur Coast, by _artist_, featured on ArtStation."
+            ]
+    },
+    "range_scale": "random",
+    "clip_guidance_scale": "random",
+    "sat_scale": "random",
+    "eta": "random",
+    "clamp_max": "random",
+    "cut_ic_pow": "random",
+    "rand_mag": "random",
+    "tv_scale": "random"
+}

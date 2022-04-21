@@ -115,15 +115,15 @@ Settings.json is **always loaded**, and any specified after that are layered on 
 For example you could have a settings file that just contains a higher width, height, and more steps, for when you want to make a high-quality image.
 Layer that on top of your regular settings and it will apply those values without changing anything else.
 
-# Tips and Troubleshooting
-## Get a random artist
+## Tips and Troubleshooting
+### Get a random artist
 In your prompt, if you use \_artist\_ instead of an artists name, an artist will be picked at random from artists.txt
 
-## If you get an error about pandas needing a different verison of numpy, you can try:
+### If you get an error about pandas needing a different verison of numpy, you can try:
 ```
 pip install --force-reinstall numpy
 ```
-## If you are getting "OMP: Error #15: Initializing libiomp5md.dll, but found libiomp5md.dll already initialized"
+### If you are getting "OMP: Error #15: Initializing libiomp5md.dll, but found libiomp5md.dll already initialized"
 This seems to be because of a Pytorch compiling bug for Intel CPUs.
 You can set an environment variable that will fix this, either on your machine (if you know how to do that), or by editing prd.py.
 To do it by editing prd.py, find the line that says "import os" and add the following right below it:
@@ -131,7 +131,7 @@ To do it by editing prd.py, find the line that says "import os" and add the foll
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 ```
 
-## Switch between GPU and CPU modes
+### Switch between GPU and CPU modes
 This is an advanced technique and requires some expertise. The main issue is you need to be able to switch between two pytorch versions. The easiest way to accomplish that is to do your install twice, each within a separate conda environment using Anaconda. I leave it up to you to learn how to do that.
 Once you've installed Anaconda and re-installed ProgRockDiffusion within a conda environment, you can create a second environment that is a clone of the first, but with a different pytorch, like so:
 
@@ -149,11 +149,6 @@ All set! You can now switch between the two by simply doing:
 conda activate progrockdiffusion
 conda activate prdcpu
 ```
-
-# Notes
-
-- Currently Superres Sampling doesn't work, it will crash.
-- Animations are untested but likely not working
 
 # TODO
 

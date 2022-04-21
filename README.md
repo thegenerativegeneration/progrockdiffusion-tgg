@@ -15,7 +15,7 @@ In addition to Disco Diffusion's great features, Prog Rock has the following ben
 
 # Table of Contents
 
-- [REQUIREMENTS](requirements)
+- [REQUIREMENTS](#requirements)
 - INSTALL
 - UPDATE
 - TIPS

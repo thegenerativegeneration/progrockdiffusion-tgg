@@ -710,26 +710,36 @@ with open('artists.txt', encoding="utf-8") as f:
     for line in f:
         artists.append(line.strip())
 
+# If _artist_ is in any of the prompts, replace them with a random artist name
+# It's extra complicated because there can be multiple prompts per frame, multiple prompts at a given step,
+# and multiple prompts that come in at a certain step. Sigh...
 artist_change = False
 for k, v in text_prompts.items():
     if type(v) == list:
-        for prompts in v:
-            if "_artist_" in prompts:
-                while "_artist_" in prompts:
-                    prompts = prompts.replace("_artist_",
-                                              random.choice(artists), 1)
-                v = [prompts]
+        newprompts = []
+        for prompt in v:
+            if "_artist_" in prompt:
+                newprompt = prompt.replace("_artist_", random.choice(artists), 1)
                 artist_change = True
+            else:
+                newprompt = prompt
+            newprompts.append(newprompt)
+        if artist_change == True:
+            v = newprompts
     else:  # to handle if the prompt is actually a multi-prompt.
         for kk, vv in v.items():
-            for prompts in vv:
-                if "_artist_" in prompts:
-                    while "_artist_" in prompts:
-                        prompts = prompts.replace("_artist_",
-                                                  random.choice(artists), 1)
-                    vv = [prompts]
-                    v = {**v, kk: vv}
+            newprompts = []
+            for prompt in vv:
+                if "_artist_" in prompt:
+                    newprompt = prompt.replace("_artist_", random.choice(artists), 1)
                     artist_change = True
+                else:
+                    newprompt = prompt
+                newprompts.append(newprompt)
+            if artist_change == True:
+                vv = newprompts
+        if artist_change == True:
+            v = {**v, kk: vv}
     if artist_change == True:
         text_prompts = {**text_prompts, k: v}
         print('Replaced _artist_ with random artist(s).')

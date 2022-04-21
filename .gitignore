@@ -1,8 +1,18 @@
 # Disco Diff output
+SLIP/
+CLIP/
+SLIP/
+guided-diffusion/
 images_out/
 init_images/
+latent-diffusion/
 models/
-progress.png
+ResizeRight/
+taming-transformers/
+scripts/
+*.png
+!mask.png
+!maskv.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

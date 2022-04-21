@@ -18,6 +18,3 @@
 	path = taming-transformers
 	url = https://github.com/CompVis/taming-transformers
 
-[submodule "SLIP"]
-	path = SLIP
-	url = https://github.com/facebookresearch/SLIP.git

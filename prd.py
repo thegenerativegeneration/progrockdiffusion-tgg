@@ -166,7 +166,7 @@ diffusion_steps = 1000
 ViTB32 = True
 ViTB16 = True
 ViTL14 = False
-ViTL14336 = False
+ViTL14_336 = False
 RN101 = False
 RN50 = True
 RN50x4 = False
@@ -459,8 +459,8 @@ for setting_arg in cl_args.settings:
                 ViTB16 = (settings_file['ViTB16'])
             if is_json_key_present(settings_file, 'ViTL14'):
                 ViTL14 = (settings_file['ViTL14'])
-            if is_json_key_present(settings_file, 'ViTL14336'):
-                ViTL14336 = (settings_file['ViTL14336'])
+            if is_json_key_present(settings_file, 'ViTL14_336'):
+                ViTL14_336 = (settings_file['ViTL14_336'])
             if is_json_key_present(settings_file, 'RN101'):
                 RN101 = (settings_file['RN101'])
             if is_json_key_present(settings_file, 'RN50'):
@@ -1790,7 +1790,7 @@ def save_settings():
         'ViTB32': ViTB32,
         'ViTB16': ViTB16,
         'ViTL14': ViTL14,
-        'ViTL14336': ViTL14336,
+        'ViTL14_336': ViTL14_336,
         'RN101': RN101,
         'RN50': RN50,
         'RN50x4': RN50x4,
@@ -2185,7 +2185,7 @@ if ViTL14 is True:
     clip_models.append(
         clip.load('ViT-L/14',
                   jit=False)[0].eval().requires_grad_(False).to(device))
-if ViTL14336 is True:
+if ViTL14_336 is True:
     clip_models.append(
         clip.load('ViT-L/14@336px',
                   jit=False)[0].eval().requires_grad_(False).to(device))

@@ -114,7 +114,7 @@ sys.path.append(f'{root_path}/guided-diffusion')
 #sys.path.append(f'{root_path}/SLIP')
 import clip
 from resize_right import resize
-from models import SLIP_VITB16, SLIP, SLIP_VITL16
+#from models import SLIP_VITB16, SLIP, SLIP_VITL16
 from guided_diffusion.script_util import create_model_and_diffusion, model_and_diffusion_defaults
 from datetime import datetime
 import numpy as np
@@ -126,25 +126,6 @@ import hashlib
 import urllib.request
 from os.path import exists
 
-#SuperRes
-import ipywidgets as widgets
-sys.path.append(f'{root_path}')
-sys.path.append(f'{root_path}/taming-transformers')
-from taming.models import vqgan  # checking correct import from taming
-from torchvision.datasets.utils import download_url
-sys.path.append(f'{root_path}/latent-diffusion')
-from functools import partial
-from ldm.util import instantiate_from_config
-from ldm.modules.diffusionmodules.util import make_ddim_sampling_parameters, make_ddim_timesteps, noise_like
-from ldm.util import ismap
-from IPython.display import Image as ipyimg
-from numpy import asarray
-from einops import rearrange, repeat
-import torch, torchvision
-import time
-from omegaconf import OmegaConf
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
 
 # Setting default values for everything, which can then be overridden by settings files.
 batch_name = "Default"
@@ -185,6 +166,7 @@ diffusion_steps = 1000
 ViTB32 = True
 ViTB16 = True
 ViTL14 = False
+ViTL14_336 = False
 RN101 = False
 RN50 = True
 RN50x4 = False
@@ -477,6 +459,8 @@ for setting_arg in cl_args.settings:
                 ViTB16 = (settings_file['ViTB16'])
             if is_json_key_present(settings_file, 'ViTL14'):
                 ViTL14 = (settings_file['ViTL14'])
+            if is_json_key_present(settings_file, 'ViTL14_336'):
+                ViTL14_336 = (settings_file['ViTL14_336'])
             if is_json_key_present(settings_file, 'RN101'):
                 RN101 = (settings_file['RN101'])
             if is_json_key_present(settings_file, 'RN50'):
@@ -487,10 +471,10 @@ for setting_arg in cl_args.settings:
                 RN50x16 = (settings_file['RN50x16'])
             if is_json_key_present(settings_file, 'RN50x64'):
                 RN50x64 = (settings_file['RN50x64'])
- #           if is_json_key_present(settings_file, 'SLIPB16'):
- #               SLIPB16 = (settings_file['SLIPB16'])
- #           if is_json_key_present(settings_file, 'SLIPL16'):
- #               SLIPL16 = (settings_file['SLIPL16'])
+#            if is_json_key_present(settings_file, 'SLIPB16'):
+#                SLIPB16 = (settings_file['SLIPB16'])
+#            if is_json_key_present(settings_file, 'SLIPL16'):
+#                SLIPL16 = (settings_file['SLIPL16'])
             if is_json_key_present(settings_file, 'cut_overview'):
                 cut_overview = (settings_file['cut_overview'])
             if is_json_key_present(settings_file, 'cut_innercut'):
@@ -1123,7 +1107,7 @@ stop_on_next_loop = False  # Make sure GPU memory doesn't get corrupted from can
 
 def do_run():
     seed = args.seed
-    print(range(args.start_frame, args.max_frames))
+    #print(range(args.start_frame, args.max_frames))
     for frame_num in range(args.start_frame, args.max_frames):
         if stop_on_next_loop:
             break
@@ -1131,7 +1115,7 @@ def do_run():
         display.clear_output(wait=True)
 
         # Print Frame progress if animation mode is on
-        print(f'Animation mode is {animation_mode}') #debug
+        #print(f'Animation mode is {animation_mode}') #debug
         if args.animation_mode != "None":
             batchBar = tqdm(range(args.max_frames), desc="Frames")
             batchBar.n = frame_num
@@ -1208,7 +1192,7 @@ def do_run():
         else:
             frame_prompt = []
 
-        print(args.image_prompts_series)
+        #print(args.image_prompts_series)
         if args.image_prompts_series is not None and frame_num >= len(
                 args.image_prompts_series):
             image_prompt = args.image_prompts_series[-1]
@@ -1226,7 +1210,6 @@ def do_run():
         model_stats = []
 
         def do_weights(s):
-            #print(" do_weights")
             nonlocal model_stats, prev_sample_prompt
             sample_prompt = []
 
@@ -1440,13 +1423,10 @@ def do_run():
                 if isinstance(args.clamp_max, list):
                     clamp_max = ease(args.clamp_max, timestep)
                 elif isinstance(args.clamp_max, str):
-                    #print(args.clamp_max)
                     clamp_max = float(numexpr.evaluate(args.clamp_max))
-                    #print(f"\nresult: {clamp_max}\n")
                 else:
                     clamp_max = args.clamp_max
 
-                #print(f"{timestep}: {clamp_max}")
                 return grad * magnitude.clamp(
                     max=args.clamp_max
                 ) / magnitude  #min=-0.02, min=-clamp_max,
@@ -1475,7 +1455,6 @@ def do_run():
                 init = regen_perlin()
 
             def do_sample_fn(_init_image, _skip):
-                #print(f" do_sample_fn {_skip}")
                 if args.sampling_mode == 'ddim':
                     samples = sample_fn(
                         model,
@@ -1760,8 +1739,8 @@ def do_run():
 
             with image_display:
                 if args.sharpen_preset != "Off" and animation_mode == "None":
-                    print('Starting Diffusion Sharpening...')
-                    do_superres(imgToSharpen, f'{batchFolder}/{filename}')
+                    print('Skipping Diffusion Sharpening (not currently supported)...')
+                    #do_superres(imgToSharpen, f'{batchFolder}/{filename}')
                     display.clear_output()
 
             plt.plot(np.array(loss_values), 'r')
@@ -1811,6 +1790,7 @@ def save_settings():
         'ViTB32': ViTB32,
         'ViTB16': ViTB16,
         'ViTL14': ViTL14,
+        'ViTL14_336': ViTL14_336,
         'RN101': RN101,
         'RN50': RN50,
         'RN50x4': RN50x4,
@@ -1853,7 +1833,6 @@ def save_settings():
         'keep_unsharp': keep_unsharp,
         'gobig_orientation': gobig_orientation,
     }
-    # print('Settings:', setting_list)
     with open(f"{batchFolder}/{batch_name}_{batchNum}_settings.json",
               "w+",
               encoding="utf-8") as f:  #save settings
@@ -2038,673 +2017,6 @@ class SecondaryDiffusionImageNet2(nn.Module):
         eps = input * sigmas + v * alphas
         return DiffusionOutput(v, pred, eps)
 
-
-#@title 2.4 SuperRes Define
-class DDIMSampler(object):
-    def __init__(self, model, schedule="linear", **kwargs):
-        super().__init__()
-        self.model = model
-        self.ddpm_num_timesteps = model.num_timesteps
-        self.schedule = schedule
-
-    def register_buffer(self, name, attr):
-        if type(attr) == torch.Tensor:
-            if attr.device != torch.device("cuda"):
-                attr = attr.to(torch.device("cuda"))
-        setattr(self, name, attr)
-
-    def make_schedule(self,
-                      ddim_num_steps,
-                      ddim_discretize="uniform",
-                      ddim_eta=0.,
-                      verbose=True):
-        self.ddim_timesteps = make_ddim_timesteps(
-            ddim_discr_method=ddim_discretize,
-            num_ddim_timesteps=ddim_num_steps,
-            num_ddpm_timesteps=self.ddpm_num_timesteps,
-            verbose=verbose)
-        alphas_cumprod = self.model.alphas_cumprod
-        assert alphas_cumprod.shape[
-            0] == self.ddpm_num_timesteps, 'alphas have to be defined for each timestep'
-        to_torch = lambda x: x.clone().detach().to(torch.float32).to(self.model
-                                                                     .device)
-
-        self.register_buffer('betas', to_torch(self.model.betas))
-        self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod))
-        self.register_buffer('alphas_cumprod_prev',
-                             to_torch(self.model.alphas_cumprod_prev))
-
-        # calculations for diffusion q(x_t | x_{t-1}) and others
-        self.register_buffer('sqrt_alphas_cumprod',
-                             to_torch(np.sqrt(alphas_cumprod.cpu())))
-        self.register_buffer('sqrt_one_minus_alphas_cumprod',
-                             to_torch(np.sqrt(1. - alphas_cumprod.cpu())))
-        self.register_buffer('log_one_minus_alphas_cumprod',
-                             to_torch(np.log(1. - alphas_cumprod.cpu())))
-        self.register_buffer('sqrt_recip_alphas_cumprod',
-                             to_torch(np.sqrt(1. / alphas_cumprod.cpu())))
-        self.register_buffer('sqrt_recipm1_alphas_cumprod',
-                             to_torch(np.sqrt(1. / alphas_cumprod.cpu() - 1)))
-
-        # ddim sampling parameters
-        ddim_sigmas, ddim_alphas, ddim_alphas_prev = make_ddim_sampling_parameters(
-            alphacums=alphas_cumprod.cpu(),
-            ddim_timesteps=self.ddim_timesteps,
-            eta=ddim_eta,
-            verbose=verbose)
-        self.register_buffer('ddim_sigmas', ddim_sigmas)
-        self.register_buffer('ddim_alphas', ddim_alphas)
-        self.register_buffer('ddim_alphas_prev', ddim_alphas_prev)
-        self.register_buffer('ddim_sqrt_one_minus_alphas',
-                             np.sqrt(1. - ddim_alphas))
-        sigmas_for_original_sampling_steps = ddim_eta * torch.sqrt(
-            (1 - self.alphas_cumprod_prev) / (1 - self.alphas_cumprod) *
-            (1 - self.alphas_cumprod / self.alphas_cumprod_prev))
-        self.register_buffer('ddim_sigmas_for_original_num_steps',
-                             sigmas_for_original_sampling_steps)
-
-    @torch.no_grad()
-    def sample(self,
-               S,
-               batch_size,
-               shape,
-               conditioning=None,
-               callback=None,
-               normals_sequence=None,
-               img_callback=None,
-               quantize_x0=False,
-               eta=0.,
-               mask=None,
-               x0=None,
-               temperature=1.,
-               noise_dropout=0.,
-               score_corrector=None,
-               corrector_kwargs=None,
-               verbose=True,
-               x_T=None,
-               log_every_t=100,
-               **kwargs):
-        if conditioning is not None:
-            if isinstance(conditioning, dict):
-                cbs = conditioning[list(conditioning.keys())[0]].shape[0]
-                if cbs != batch_size:
-                    print(
-                        f"Warning: Got {cbs} conditionings but batch-size is {batch_size}"
-                    )
-            else:
-                if conditioning.shape[0] != batch_size:
-                    print(
-                        f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}"
-                    )
-
-        self.make_schedule(ddim_num_steps=S, ddim_eta=eta, verbose=verbose)
-        # sampling
-        C, H, W = shape
-        size = (batch_size, C, H, W)
-        # print(f'Data shape for DDIM sampling is {size}, eta {eta}')
-
-        samples, intermediates = self.ddim_sampling(
-            conditioning,
-            size,
-            callback=callback,
-            img_callback=img_callback,
-            quantize_denoised=quantize_x0,
-            mask=mask,
-            x0=x0,
-            ddim_use_original_steps=False,
-            noise_dropout=noise_dropout,
-            temperature=temperature,
-            score_corrector=score_corrector,
-            corrector_kwargs=corrector_kwargs,
-            x_T=x_T,
-            log_every_t=log_every_t)
-        return samples, intermediates
-
-    @torch.no_grad()
-    def ddim_sampling(self,
-                      cond,
-                      shape,
-                      x_T=None,
-                      ddim_use_original_steps=False,
-                      callback=None,
-                      timesteps=None,
-                      quantize_denoised=False,
-                      mask=None,
-                      x0=None,
-                      img_callback=None,
-                      log_every_t=100,
-                      temperature=1.,
-                      noise_dropout=0.,
-                      score_corrector=None,
-                      corrector_kwargs=None):
-        device = self.model.betas.device
-        b = shape[0]
-        if x_T is None:
-            img = torch.randn(shape, device=device)
-        else:
-            img = x_T
-
-        if timesteps is None:
-            timesteps = self.ddpm_num_timesteps if ddim_use_original_steps else self.ddim_timesteps
-        elif timesteps is not None and not ddim_use_original_steps:
-            subset_end = int(
-                min(timesteps / self.ddim_timesteps.shape[0], 1) *
-                self.ddim_timesteps.shape[0]) - 1
-            timesteps = self.ddim_timesteps[:subset_end]
-
-        intermediates = {'x_inter': [img], 'pred_x0': [img]}
-        time_range = reversed(range(
-            0, timesteps)) if ddim_use_original_steps else np.flip(timesteps)
-        total_steps = timesteps if ddim_use_original_steps else timesteps.shape[
-            0]
-        print(f"Running DDIM Sharpening with {total_steps} timesteps")
-
-        iterator = tqdm(time_range, desc='DDIM Sharpening', total=total_steps)
-
-        for i, step in enumerate(iterator):
-            index = total_steps - i - 1
-            ts = torch.full((b, ), step, device=device, dtype=torch.long)
-
-            if mask is not None:
-                assert x0 is not None
-                img_orig = self.model.q_sample(
-                    x0, ts)  # TODO: deterministic forward pass?
-                img = img_orig * mask + (1. - mask) * img
-
-            outs = self.p_sample_ddim(
-                img,
-                cond,
-                ts,
-                index=index,
-                use_original_steps=ddim_use_original_steps,
-                quantize_denoised=quantize_denoised,
-                temperature=temperature,
-                noise_dropout=noise_dropout,
-                score_corrector=score_corrector,
-                corrector_kwargs=corrector_kwargs)
-            img, pred_x0 = outs
-            if callback: callback(i)
-            if img_callback: img_callback(pred_x0, i)
-
-            if index % log_every_t == 0 or index == total_steps - 1:
-                intermediates['x_inter'].append(img)
-                intermediates['pred_x0'].append(pred_x0)
-
-        return img, intermediates
-
-    @torch.no_grad()
-    def p_sample_ddim(self,
-                      x,
-                      c,
-                      t,
-                      index,
-                      repeat_noise=False,
-                      use_original_steps=False,
-                      quantize_denoised=False,
-                      temperature=1.,
-                      noise_dropout=0.,
-                      score_corrector=None,
-                      corrector_kwargs=None):
-        b, *_, device = *x.shape, x.device
-        e_t = self.model.apply_model(x, t, c)
-        if score_corrector is not None:
-            assert self.model.parameterization == "eps"
-            e_t = score_corrector.modify_score(self.model, e_t, x, t, c,
-                                               **corrector_kwargs)
-
-        alphas = self.model.alphas_cumprod if use_original_steps else self.ddim_alphas
-        alphas_prev = self.model.alphas_cumprod_prev if use_original_steps else self.ddim_alphas_prev
-        sqrt_one_minus_alphas = self.model.sqrt_one_minus_alphas_cumprod if use_original_steps else self.ddim_sqrt_one_minus_alphas
-        sigmas = self.model.ddim_sigmas_for_original_num_steps if use_original_steps else self.ddim_sigmas
-        # select parameters corresponding to the currently considered timestep
-        a_t = torch.full((b, 1, 1, 1), alphas[index], device=device)
-        a_prev = torch.full((b, 1, 1, 1), alphas_prev[index], device=device)
-        sigma_t = torch.full((b, 1, 1, 1), sigmas[index], device=device)
-        sqrt_one_minus_at = torch.full((b, 1, 1, 1),
-                                       sqrt_one_minus_alphas[index],
-                                       device=device)
-
-        # current prediction for x_0
-        pred_x0 = (x - sqrt_one_minus_at * e_t) / a_t.sqrt()
-        if quantize_denoised:
-            pred_x0, _, *_ = self.model.first_stage_model.quantize(pred_x0)
-        # direction pointing to x_t
-        dir_xt = (1. - a_prev - sigma_t**2).sqrt() * e_t
-        noise = sigma_t * noise_like(x.shape, device,
-                                     repeat_noise) * temperature
-        if noise_dropout > 0.:
-            noise = torch.nn.functional.dropout(noise, p=noise_dropout)
-        x_prev = a_prev.sqrt() * pred_x0 + dir_xt + noise
-        return x_prev, pred_x0
-
-
-def download_models(mode):
-
-    if mode == "superresolution":
-        # this is the small bsr light model
-        url_conf = 'https://heibox.uni-heidelberg.de/f/31a76b13ea27482981b4/?dl=1'
-        url_ckpt = 'https://heibox.uni-heidelberg.de/f/578df07c8fc04ffbadf3/?dl=1'
-
-        if not os.path.isdir(f'{model_path}/superres'):
-            os.makedirs(f'{model_path}/superres')
-        path_conf = f'{model_path}/superres/project.yaml'
-        path_ckpt = f'{model_path}/superres/last.ckpt'
-
-        if os.path.exists(path_conf) and os.path.exists(path_ckpt):
-            print("Superres models already downloaded, skipping...")
-        else:
-            print("Superres models downloading, this might take a while...")
-            urllib.request.urlretrieve(url_conf, path_conf)
-            urllib.request.urlretrieve(url_ckpt, path_ckpt)
-
-        #path_conf = path_conf + '/?dl=1' # fix it
-        #path_ckpt = path_ckpt + '/?dl=1' # fix it
-        return path_conf, path_ckpt
-
-    else:
-        raise NotImplementedError
-
-
-def load_model_from_config(config, ckpt):
-    print(f"Loading model from {ckpt}")
-    pl_sd = torch.load(ckpt, map_location="cpu")
-    global_step = pl_sd["global_step"]
-    sd = pl_sd["state_dict"]
-    model = instantiate_from_config(config.model)
-    m, u = model.load_state_dict(sd, strict=False)
-    model.to(device)
-    model.eval()
-    return {"model": model}, global_step
-
-
-def get_model(mode):
-    path_conf, path_ckpt = download_models(mode)
-    config = OmegaConf.load(path_conf)
-    model, step = load_model_from_config(config, path_ckpt)
-    return model
-
-
-def get_custom_cond(mode):
-    dest = "data/example_conditioning"
-
-    if mode == "superresolution":
-        uploaded_img = files.upload()
-        filename = next(iter(uploaded_img))
-        name, filetype = filename.split(
-            ".")  # todo assumes just one dot in name !
-        os.rename(f"{filename}", f"{dest}/{mode}/custom_{name}.{filetype}")
-
-    elif mode == "text_conditional":
-        w = widgets.Text(value='A cake with cream!', disabled=True)
-        display.display(w)
-
-        with open(f"{dest}/{mode}/custom_{w.value[:20]}.txt", 'w') as f:
-            f.write(w.value)
-
-    elif mode == "class_conditional":
-        w = widgets.IntSlider(min=0, max=1000)
-        display.display(w)
-        with open(f"{dest}/{mode}/custom.txt", 'w') as f:
-            f.write(w.value)
-
-    else:
-        raise NotImplementedError(f"cond not implemented for mode{mode}")
-
-
-def get_cond_options(mode):
-    path = "data/example_conditioning"
-    path = os.path.join(path, mode)
-    onlyfiles = [f for f in sorted(os.listdir(path))]
-    return path, onlyfiles
-
-
-def select_cond_path(mode):
-    path = "data/example_conditioning"  # todo
-    path = os.path.join(path, mode)
-    onlyfiles = [f for f in sorted(os.listdir(path))]
-
-    selected = widgets.RadioButtons(options=onlyfiles,
-                                    description='Select conditioning:',
-                                    disabled=False)
-    display.display(selected)
-    selected_path = os.path.join(path, selected.value)
-    return selected_path
-
-
-def get_cond(mode, img):
-    example = dict()
-    if mode == "superresolution":
-        up_f = 4
-        # visualize_cond_img(selected_path)
-
-        c = img
-        c = torch.unsqueeze(torchvision.transforms.ToTensor()(c), 0)
-        c_up = torchvision.transforms.functional.resize(
-            c, size=[up_f * c.shape[2], up_f * c.shape[3]], antialias=True)
-        c_up = rearrange(c_up, '1 c h w -> 1 h w c')
-        c = rearrange(c, '1 c h w -> 1 h w c')
-        c = 2. * c - 1.
-
-        c = c.to(torch.device("cuda"))
-        example["LR_image"] = c
-        example["image"] = c_up
-
-    return example
-
-
-def visualize_cond_img(path):
-    display.display(ipyimg(filename=path))
-
-
-def sr_run(model,
-           img,
-           task,
-           custom_steps,
-           eta,
-           resize_enabled=False,
-           classifier_ckpt=None,
-           global_step=None):
-    # global stride
-
-    example = get_cond(task, img)
-
-    save_intermediate_vid = False
-    n_runs = 1
-    masked = False
-    guider = None
-    ckwargs = None
-    mode = 'ddim'
-    ddim_use_x0_pred = False
-    temperature = 1.
-    eta = eta
-    make_progrow = True
-    custom_shape = None
-
-    height, width = example["image"].shape[1:3]
-    split_input = height >= 128 and width >= 128
-
-    if split_input:
-        ks = 128
-        stride = 64
-        vqf = 4  #
-        model.split_input_params = {
-            "ks": (ks, ks),
-            "stride": (stride, stride),
-            "vqf": vqf,
-            "patch_distributed_vq": True,
-            "tie_braker": False,
-            "clip_max_weight": 0.5,
-            "clip_min_weight": 0.01,
-            "clip_max_tie_weight": 0.5,
-            "clip_min_tie_weight": 0.01
-        }
-    else:
-        if hasattr(model, "split_input_params"):
-            delattr(model, "split_input_params")
-
-    invert_mask = False
-
-    x_T = None
-    for n in range(n_runs):
-        if custom_shape is not None:
-            x_T = torch.randn(1, custom_shape[1], custom_shape[2],
-                              custom_shape[3]).to(model.device)
-            x_T = repeat(x_T, '1 c h w -> b c h w', b=custom_shape[0])
-
-        logs = make_convolutional_sample(
-            example,
-            model,
-            mode=mode,
-            custom_steps=custom_steps,
-            eta=eta,
-            swap_mode=False,
-            masked=masked,
-            invert_mask=invert_mask,
-            quantize_x0=False,
-            custom_schedule=None,
-            decode_interval=10,
-            resize_enabled=resize_enabled,
-            custom_shape=custom_shape,
-            temperature=temperature,
-            noise_dropout=0.,
-            corrector=guider,
-            corrector_kwargs=ckwargs,
-            x_T=x_T,
-            save_intermediate_vid=save_intermediate_vid,
-            make_progrow=make_progrow,
-            ddim_use_x0_pred=ddim_use_x0_pred)
-    return logs
-
-
-@torch.no_grad()
-def convsample_ddim(model,
-                    cond,
-                    steps,
-                    shape,
-                    eta=1.0,
-                    callback=None,
-                    normals_sequence=None,
-                    mask=None,
-                    x0=None,
-                    quantize_x0=False,
-                    img_callback=None,
-                    temperature=1.,
-                    noise_dropout=0.,
-                    score_corrector=None,
-                    corrector_kwargs=None,
-                    x_T=None,
-                    log_every_t=None):
-
-    ddim = DDIMSampler(model)
-    bs = shape[0]  # dont know where this comes from but wayne
-    shape = shape[1:]  # cut batch dim
-    # print(f"Sampling with eta = {eta}; steps: {steps}")
-    samples, intermediates = ddim.sample(steps,
-                                         batch_size=bs,
-                                         shape=shape,
-                                         conditioning=cond,
-                                         callback=callback,
-                                         normals_sequence=normals_sequence,
-                                         quantize_x0=quantize_x0,
-                                         eta=eta,
-                                         mask=mask,
-                                         x0=x0,
-                                         temperature=temperature,
-                                         verbose=False,
-                                         score_corrector=score_corrector,
-                                         corrector_kwargs=corrector_kwargs,
-                                         x_T=x_T)
-
-    return samples, intermediates
-
-
-@torch.no_grad()
-def make_convolutional_sample(batch,
-                              model,
-                              mode="vanilla",
-                              custom_steps=None,
-                              eta=1.0,
-                              swap_mode=False,
-                              masked=False,
-                              invert_mask=True,
-                              quantize_x0=False,
-                              custom_schedule=None,
-                              decode_interval=1000,
-                              resize_enabled=False,
-                              custom_shape=None,
-                              temperature=1.,
-                              noise_dropout=0.,
-                              corrector=None,
-                              corrector_kwargs=None,
-                              x_T=None,
-                              save_intermediate_vid=False,
-                              make_progrow=True,
-                              ddim_use_x0_pred=False):
-    log = dict()
-
-    z, c, x, xrec, xc = model.get_input(
-        batch,
-        model.first_stage_key,
-        return_first_stage_outputs=True,
-        force_c_encode=not (hasattr(model, 'split_input_params')
-                            and model.cond_stage_key == 'coordinates_bbox'),
-        return_original_cond=True)
-
-    log_every_t = 1 if save_intermediate_vid else None
-
-    if custom_shape is not None:
-        z = torch.randn(custom_shape)
-        # print(f"Generating {custom_shape[0]} samples of shape {custom_shape[1:]}")
-
-    z0 = None
-
-    log["input"] = x
-    log["reconstruction"] = xrec
-
-    if ismap(xc):
-        log["original_conditioning"] = model.to_rgb(xc)
-        if hasattr(model, 'cond_stage_key'):
-            log[model.cond_stage_key] = model.to_rgb(xc)
-
-    else:
-        log["original_conditioning"] = xc if xc is not None else torch.zeros_like(
-            x)
-        if model.cond_stage_model:
-            log[model.
-                cond_stage_key] = xc if xc is not None else torch.zeros_like(x)
-            if model.cond_stage_key == 'class_label':
-                log[model.cond_stage_key] = xc[model.cond_stage_key]
-
-    with model.ema_scope("Plotting"):
-        t0 = time.time()
-        img_cb = None
-
-        sample, intermediates = convsample_ddim(
-            model,
-            c,
-            steps=custom_steps,
-            shape=z.shape,
-            eta=eta,
-            quantize_x0=quantize_x0,
-            img_callback=img_cb,
-            mask=None,
-            x0=z0,
-            temperature=temperature,
-            noise_dropout=noise_dropout,
-            score_corrector=corrector,
-            corrector_kwargs=corrector_kwargs,
-            x_T=x_T,
-            log_every_t=log_every_t)
-        t1 = time.time()
-
-        if ddim_use_x0_pred:
-            sample = intermediates['pred_x0'][-1]
-
-    x_sample = model.decode_first_stage(sample)
-
-    try:
-        x_sample_noquant = model.decode_first_stage(sample,
-                                                    force_not_quantize=True)
-        log["sample_noquant"] = x_sample_noquant
-        log["sample_diff"] = torch.abs(x_sample_noquant - x_sample)
-    except:
-        pass
-
-    log["sample"] = x_sample
-    log["time"] = t1 - t0
-
-    return log
-
-
-sr_diffMode = 'superresolution'
-sr_model = get_model('superresolution')
-
-
-def do_superres(img, filepath):
-    if args.sharpen_preset == 'Faster':
-        sr_diffusion_steps = "25"
-        sr_pre_downsample = '1/2'
-    if args.sharpen_preset == 'Fast':
-        sr_diffusion_steps = "100"
-        sr_pre_downsample = '1/2'
-    if args.sharpen_preset == 'Slow':
-        sr_diffusion_steps = "25"
-        sr_pre_downsample = 'None'
-    if args.sharpen_preset == 'Very Slow':
-        sr_diffusion_steps = "100"
-        sr_pre_downsample = 'None'
-
-    sr_post_downsample = 'Original Size'
-    sr_diffusion_steps = int(sr_diffusion_steps)
-    sr_eta = 1.0
-    sr_downsample_method = 'Lanczos'
-
-    gc.collect()
-    torch.cuda.empty_cache()
-
-    im_og = img
-    width_og, height_og = im_og.size
-
-    #Downsample Pre
-    if sr_pre_downsample == '1/2':
-        downsample_rate = 2
-    elif sr_pre_downsample == '1/4':
-        downsample_rate = 4
-    else:
-        downsample_rate = 1
-
-    width_downsampled_pre = width_og // downsample_rate
-    height_downsampled_pre = height_og // downsample_rate
-
-    if downsample_rate != 1:
-        # print(f'Downsampling from [{width_og}, {height_og}] to [{width_downsampled_pre}, {height_downsampled_pre}]')
-        im_og = im_og.resize((width_downsampled_pre, height_downsampled_pre),
-                             Image.LANCZOS)
-        # im_og.save('/content/temp.png')
-        # filepath = '/content/temp.png'
-
-    logs = sr_run(sr_model["model"], im_og, sr_diffMode, sr_diffusion_steps,
-                  sr_eta)
-
-    sample = logs["sample"]
-    sample = sample.detach().cpu()
-    sample = torch.clamp(sample, -1., 1.)
-    sample = (sample + 1.) / 2. * 255
-    sample = sample.numpy().astype(np.uint8)
-    sample = np.transpose(sample, (0, 2, 3, 1))
-    a = Image.fromarray(sample[0])
-
-    #Downsample Post
-    if sr_post_downsample == '1/2':
-        downsample_rate = 2
-    elif sr_post_downsample == '1/4':
-        downsample_rate = 4
-    else:
-        downsample_rate = 1
-
-    width, height = a.size
-    width_downsampled_post = width // downsample_rate
-    height_downsampled_post = height // downsample_rate
-
-    if sr_downsample_method == 'Lanczos':
-        aliasing = Image.LANCZOS
-    else:
-        aliasing = Image.NEAREST
-
-    if downsample_rate != 1:
-        # print(f'Downsampling from [{width}, {height}] to [{width_downsampled_post}, {height_downsampled_post}]')
-        a = a.resize((width_downsampled_post, height_downsampled_post),
-                     aliasing)
-    elif sr_post_downsample == 'Original Size':
-        # print(f'Downsampling from [{width}, {height}] to Original Size [{width_og}, {height_og}]')
-        a = a.resize((width_og, height_og), aliasing)
-
-    #display.display(a)
-    a.save(filepath)
-    return
-    print(f'Processing finished!')
-
-
 """# 2. Diffusion and CLIP model settings"""
 
 #@markdown ####**Models Settings:**
@@ -2757,9 +2069,7 @@ if diffusion_model == '256x256_diffusion_uncond':
     elif os.path.exists(
             model_256_path
     ) and not check_model_SHA or model_256_downloaded == True:
-        print(
-            '256 Model already downloaded, check check_model_SHA if the file is corrupt'
-        )
+        pass
     else:
         print("256 Model downloading, this might take a while...")
         #!wget --continue {model_256_link} -P {model_path}
@@ -2782,13 +2092,10 @@ elif diffusion_model == '512x512_diffusion_uncond_finetune_008100':
     elif os.path.exists(
             model_512_path
     ) and not check_model_SHA or model_512_downloaded == True:
-        print(
-            '512 Model already downloaded, check check_model_SHA if the file is corrupt'
-        )
+        pass
     else:
         #!wget --continue {model_512_link} -P {model_path}
-        print(model_path)
-        print("512 Model downloading, this might take a while...")
+        print(f"512 Model downloading to {model_path}, this might take a while...")
         urllib.request.urlretrieve(model_512_link, model_512_path)
         model_512_downloaded = True
 
@@ -2811,9 +2118,7 @@ if use_secondary_model == True:
     elif os.path.exists(
             model_secondary_path
     ) and not check_model_SHA or model_secondary_downloaded == True:
-        print(
-            'Secondary Model already downloaded, check check_model_SHA if the file is corrupt'
-        )
+        pass
     else:
         #!wget --continue {model_secondary_link} -P {model_path}
         print('Secondary Model downloading, this might take a while...')
@@ -2879,6 +2184,10 @@ if ViTB16 is True:
 if ViTL14 is True:
     clip_models.append(
         clip.load('ViT-L/14',
+                  jit=False)[0].eval().requires_grad_(False).to(device))
+if ViTL14_336 is True:
+    clip_models.append(
+        clip.load('ViT-L/14@336px',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 if RN50 is True:
     clip_models.append(
@@ -3222,11 +2531,6 @@ if geninit:
         (steps * geninitamount)
     ]  # Save a checkpoint at 20% for use as a later init image
 intermediates_in_subfolder = True  #@param{type: 'boolean'}
-#@markdown Intermediate steps will save a copy at your specified intervals. You can either format it as a single integer or a list of specific steps
-
-#@markdown A value of `2` will save a copy at 33% and 66%. 0 will save none.
-
-#@markdown A value of `[5, 9, 34, 45]` will save at steps 5, 9, 34, and 45. (Make sure to include the brackets)
 
 if type(intermediate_saves) is not list:
     if intermediate_saves:
@@ -3243,68 +2547,6 @@ if intermediate_saves and intermediates_in_subfolder is True:
     partialFolder = f'{batchFolder}/partials'
     createPath(partialFolder)
 
-    #@markdown ---
-
-#@markdown ####**SuperRes Sharpening:**
-#@markdown *Sharpen each image using latent-diffusion. Does not run in animation mode. `keep_unsharp` will save both versions.*
-#sharpen_preset = 'Slow'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
-#keep_unsharp = False  #@param{type: 'boolean'}
-
-if sharpen_preset != 'Off' and keep_unsharp is True:
-    unsharpenFolder = f'{batchFolder}/unsharpened'
-    createPath(unsharpenFolder)
-
-    #@markdown ---
-
-#@markdown ####**Advanced Settings:**
-#@markdown *There are a few extra advanced settings available if you double click this cell.*
-
-#@markdown *Perlin init will replace your init, so uncheck if using one.*
-
-#perlin_init = False  #@param{type: 'boolean'}
-#perlin_mode = 'mixed' #@param ['mixed', 'color', 'gray']
-#set_seed = 'random_seed' #@param{type: 'string'}
-#eta = 0.8#@param{type: 'number'}
-#clamp_grad = True #@param{type: 'boolean'}
-#clamp_max = 0.05 #@param{type: 'number'}
-
-### EXTRA ADVANCED SETTINGS:
-#randomize_class = True
-#clip_denoised = False
-#fuzzy_prompt = False
-#rand_mag = 0.05
-
-#@markdown ---
-
-#@markdown ####**Cutn Scheduling:**
-#@markdown Format: `[40]*400+[20]*600` = 40 cuts for the first 400 /1000 steps, then 20 for the last 600/1000
-
-#@markdown cut_overview and cut_innercut are cumulative for total cutn on any given step. Overview cuts see the entire image and are good for early structure, innercuts are your standard cutn.
-
-#cut_overview = "[12]*400+[4]*600" #@param {type: 'string'}
-#cut_innercut ="[4]*400+[12]*600"#@param {type: 'string'}
-#cut_ic_pow = 1#@param {type: 'number'}
-#cut_icgray_p = "[0.2]*400+[0]*600"#@param {type: 'string'}
-
-# REMOVED FOR COMMAND LINE ARGS
-"""###Prompts
-`animation_mode: None` will only use the first set. `animation_mode: 2D / Video` will run through them per the set frames and hold on the last one.
-
-text_prompts = {
-    0: ["Cinematic dark alley with rain and puddles, by Leif Heanzo, thriller book cover."],
-    # 100: ["This set of prompts start at frame 100", "This prompt has weight five:5"],
-}
-
-image_prompts = {
-    # 0:['ImagePromptsWorkButArentVeryGood.png:2',],
-}
-"""
-"""# 4. Diffuse!"""
-
-#@title Do the Run!
-#@markdown `n_batches` ignored with animation modes.
-#display_rate =  300 #@param{type: 'number'}
-#n_batches =  10 #@param{type: 'number'}
 
 batch_size = 1
 
@@ -3314,9 +2556,6 @@ def move_files(start_num, end_num, old_folder, new_folder):
         old_file = old_folder + f'/{batch_name}({batchNum})_{i:04}.png'
         new_file = new_folder + f'/{batch_name}({batchNum})_{i:04}.png'
         os.rename(old_file, new_file)
-
-
-#@markdown ---
 
 resume_run = False  #@param{type: 'boolean'}
 run_to_resume = 'latest'  #@param{type: 'string'}
@@ -3444,9 +2683,8 @@ args = {
 
 args = SimpleNamespace(**args)
 
-print('Prepping model...')
 model, diffusion = create_model_and_diffusion(**model_config)
-print(f'{model_path}/{diffusion_model}.pt')
+print(f'Prepping model: {model_path}/{diffusion_model}.pt')
 model.load_state_dict(
     torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
 model.requires_grad_(False).eval().to(device)
@@ -3461,7 +2699,7 @@ torch.cuda.empty_cache()
 
 # FUNCTIONS FOR GO BIG MODE
 global slices_todo
-slices_todo = 4 # Number of chunks to slice up from the original image
+slices_todo = 5 # Number of chunks to slice up from the original image
 
 # Input is an image, return image with mask added as an alpha channel
 def addalpha(im, mask):
@@ -3483,7 +2721,7 @@ def mergeimgs(source, slices):
             paste_y += slice_height
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.ceil(slice_width / 64) #round slice height up to the nearest 64
+        slice_width = 64 * math.ceil(slice_width / 64) #round slice width up to the nearest 64
         paste_x = 0
         for slice in slices:
             source.alpha_composite(slice, (paste_x,0))
@@ -3511,7 +2749,7 @@ def slice(source):
             i += 1
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.ceil(slice_width / 64) #round slice height up to the nearest 64
+        slice_width = 64 * math.ceil(slice_width / 64) #round slice width up to the nearest 64
         slice_width += overlap
         print(f'rounded slice_width is {slice_width} with overlap')
         i = 0
@@ -3561,7 +2799,6 @@ try:
                 # Reset underlying systems for another run
                 print('Prepping model for next run...')
                 model, diffusion = create_model_and_diffusion(**model_config)
-                print(f'{model_path}/{diffusion_model}.pt')
                 model.load_state_dict(
                     torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
                 model.requires_grad_(False).eval().to(device)
@@ -3575,7 +2812,7 @@ try:
                 #no do the next run
                 chunk.save(slice_image)
                 args.init_image = slice_image
-                args.skip_steps = int(steps * .65)
+                args.skip_steps = int(steps * .57)
                 args.side_x, args.side_y = chunk.size
                 fix_brightness_contrast = False
                 do_run()

@@ -2,11 +2,11 @@
     "batch_name": "Default",
     "text_prompts": {
         "0": [
-            "The Big Sur Coast, by Asher Brown Durand, featured on ArtStation."
+            "A beautiful painting of a Castle in the Scottish Highlands, underexposed and overcast, by Asher Brown Durand, featured on ArtStation."
         ]
     },
     "n_batches": 1,
-    "steps": 250,
+    "steps": 200,
     "display_rate": 20,
     "width": 832,
     "height": 512,
@@ -41,6 +41,7 @@
     "ViTB32": true,
     "ViTB16": true,
     "ViTL14": false,
+    "ViTL14_336": false,
     "RN101": false,
     "RN50": true,
     "RN50x4": false,

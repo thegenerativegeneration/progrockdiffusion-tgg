@@ -1,12 +1,15 @@
 [submodule "ResizeRight"]
 	path = ResizeRight
 	url = https://github.com/assafshocher/ResizeRight.git
+	branch = master
 
 [submodule "CLIP"]
 	path = CLIP
 	url = https://github.com/openai/CLIP.git
+	branch = master
 
 [submodule "guided-diffusion"]
 	path = guided-diffusion
 	url = https://github.com/crowsonkb/guided-diffusion
+	branch = master
 

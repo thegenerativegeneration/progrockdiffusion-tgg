@@ -3489,7 +3489,7 @@ try:
                 #no do the next run
                 chunk.save(slice_image)
                 args.init_image = slice_image
-                args.skip_steps = int(steps * .65)
+                args.skip_steps = int(steps * .57)
                 args.side_x, args.side_y = chunk.size
                 fix_brightness_contrast = False
                 do_run()

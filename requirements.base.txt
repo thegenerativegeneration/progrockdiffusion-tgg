@@ -1,7 +1,5 @@
 clip @ git+https://github.com/openai/CLIP.git@40f5484c1c74edd83cb9cf687c6ab92b28d8b656
 guided-diffusion @ git+https://github.com/crowsonkb/guided-diffusion.git@77db72935820a00d3a28737b9be322a39edcd24f
-latent-diffusion @ git+https://github.com/CompVis/latent-diffusion.git@main
-taming-transformers @ git+https://github.com/CompVis/taming-transformers.git@master
 datetime == 4.4
 timm == 0.5.4
 lpips == 0.1.4

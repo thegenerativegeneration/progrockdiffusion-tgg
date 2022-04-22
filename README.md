@@ -4,7 +4,6 @@ A command line version of [Disco Diffusion](https://github.com/alembics/disco-di
 # Quick note on updating:
 A new version was released today, April 5 2022. If you are trying to update you'll need to install a few additional items:
 ```
-git clone https://github.com/facebookresearch/SLIP.git
 pip install json5 numexpr
 ```
 

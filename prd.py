@@ -126,7 +126,6 @@ import hashlib
 import urllib.request
 from os.path import exists
 
-
 # Setting default values for everything, which can then be overridden by settings files.
 batch_name = "Default"
 text_prompts = "No prompt in the file, by Sir Digby Chicken Caeser"
@@ -208,7 +207,7 @@ low_brightness_start = 0
 low_brightness_adjust = True
 sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
 keep_unsharp = False  #@param{type: 'boolean'}
-animation_mode = "None" # "Video Input", "2D"
+animation_mode = "None"  # "Video Input", "2D"
 gobig_orientation = "vertical"
 
 # Command Line parse
@@ -336,7 +335,15 @@ my_parser.add_argument(
     '--gobig',
     action='store_true',
     required=False,
-    help='After generation, the image is split into sections and re-rendered, to double the size.')
+    help=
+    'After generation, the image is split into sections and re-rendered, to double the size.'
+)
+
+my_parser.add_argument(
+    '--gobig-init',
+    action='store',
+    required=False,
+    help='Skip initial gobig generation and use the specified image instead')
 
 cl_args = my_parser.parse_args()
 
@@ -500,7 +507,8 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'intermediate_saves'):
                 intermediate_saves = (settings_file['intermediate_saves'])
             if is_json_key_present(settings_file, 'fix_brightness_contrast'):
-                fix_brightness_contrast = (settings_file['fix_brightness_contrast'])
+                fix_brightness_contrast = (
+                    settings_file['fix_brightness_contrast'])
             if is_json_key_present(settings_file, 'adjustment_interval'):
                 adjustment_interval = (settings_file['adjustment_interval'])
             if is_json_key_present(settings_file, 'high_contrast_threshold'):
@@ -597,14 +605,21 @@ if cl_args.gui:
 letsgobig = False
 gobig_horizontal = False
 gobig_vertical = False
-if cl_args.gobig:
+gobig_init = None
+if cl_args.gobig or cl_args.gobig_init:
     letsgobig = True
-    if gobig_orientation == "horizontal": # default is vertical, if the settings file says otherwise, change it
+    if gobig_orientation == "horizontal":  # default is vertical, if the settings file says otherwise, change it
         gobig_horizontal = True
     else:
         gobig_vertical = True
     n_batches = 1
-    print('Going BIG! N-batches automatically set to 1, as only 1 output is supported.')
+
+    if (cl_args.gobig_init):
+        gobig_init = cl_args.gobig_init
+
+    print(
+        'Going BIG! N-batches automatically set to 1, as only 1 output is supported.'
+    )
 
 if cl_args.geninit:
     geninit = True
@@ -704,7 +719,8 @@ for k, v in text_prompts.items():
         newprompts = []
         for prompt in v:
             if "_artist_" in prompt:
-                newprompt = prompt.replace("_artist_", random.choice(artists), 1)
+                newprompt = prompt.replace("_artist_", random.choice(artists),
+                                           1)
                 artist_change = True
             else:
                 newprompt = prompt
@@ -716,7 +732,8 @@ for k, v in text_prompts.items():
             newprompts = []
             for prompt in vv:
                 if "_artist_" in prompt:
-                    newprompt = prompt.replace("_artist_", random.choice(artists), 1)
+                    newprompt = prompt.replace("_artist_",
+                                               random.choice(artists), 1)
                     artist_change = True
                 else:
                     newprompt = prompt
@@ -878,7 +895,6 @@ def parse_prompt(prompt, vars={}):
         vals = prompt.rsplit(':', 1)
     vals = vals + ['', '1'][len(vals):]
     return vals[0], float(numexpr.evaluate(vals[1], local_dict=vars))
-
 
 
 def sinc(x):
@@ -1105,6 +1121,7 @@ def range_loss(input):
 
 
 stop_on_next_loop = False  # Make sure GPU memory doesn't get corrupted from cancelling the run mid-way through, allow a full frame to complete
+
 
 def do_run():
     seed = args.seed
@@ -1554,7 +1571,9 @@ def do_run():
 
                                 if j % args.display_rate == 0 or cur_t == -1:
                                     if cl_args.cuda != '0':
-                                        image.save(f"progress{cl_args.cuda}.png") # note the GPU being used if it's not 0, so it won't overwrite other GPU's work
+                                        image.save(
+                                            f"progress{cl_args.cuda}.png"
+                                        )  # note the GPU being used if it's not 0, so it won't overwrite other GPU's work
                                     else:
                                         image.save('progress.png')
                                     display.clear_output(wait=True)
@@ -1583,7 +1602,8 @@ def do_run():
                                     if frame_num == 0:
                                         save_settings()
                                     if args.animation_mode != "None":
-                                        print('saving prev frame for animation') #debug
+                                        print('saving prev frame for animation'
+                                              )  #debug
                                         image.save('prevFrame.png')
                                     if args.sharpen_preset != "Off" and animation_mode == "None":
                                         imgToSharpen = image
@@ -1686,7 +1706,8 @@ def do_run():
                     #print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
-                    if (s % adjustment_interval == 0) and (fix_brightness_contrast == True):
+                    if (s % adjustment_interval
+                            == 0) and (fix_brightness_contrast == True):
                         if (high_brightness_adjust
                                 and s > high_brightness_start
                                 and brightness > high_brightness_threshold):
@@ -1737,10 +1758,11 @@ def do_run():
                     if (cur_t == -1):
                         break
 
-
             with image_display:
                 if args.sharpen_preset != "Off" and animation_mode == "None":
-                    print('Skipping Diffusion Sharpening (not currently supported)...')
+                    print(
+                        'Skipping Diffusion Sharpening (not currently supported)...'
+                    )
                     #do_superres(imgToSharpen, f'{batchFolder}/{filename}')
                     display.clear_output()
 
@@ -1797,8 +1819,8 @@ def save_settings():
         'RN50x4': RN50x4,
         'RN50x16': RN50x16,
         'RN50x64': RN50x64,
-#        'SLIPB16': SLIPB16,
-#        'SLIPL16': SLIPL16,
+        #        'SLIPB16': SLIPB16,
+        #        'SLIPL16': SLIPL16,
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
@@ -2018,6 +2040,7 @@ class SecondaryDiffusionImageNet2(nn.Module):
         eps = input * sigmas + v * alphas
         return DiffusionOutput(v, pred, eps)
 
+
 """# 2. Diffusion and CLIP model settings"""
 
 #@markdown ####**Models Settings:**
@@ -2096,7 +2119,9 @@ elif diffusion_model == '512x512_diffusion_uncond_finetune_008100':
         pass
     else:
         #!wget --continue {model_512_link} -P {model_path}
-        print(f"512 Model downloading to {model_path}, this might take a while...")
+        print(
+            f"512 Model downloading to {model_path}, this might take a while..."
+        )
         urllib.request.urlretrieve(model_512_link, model_512_path)
         model_512_downloaded = True
 
@@ -2210,7 +2235,6 @@ if RN101 is True:
     clip_models.append(
         clip.load('RN101',
                   jit=False)[0].eval().requires_grad_(False).to(device))
-
 """
 if SLIPB16:
     SLIPB16model = SLIP_VITB16(ssl_mlp_dim=4096, ssl_emb_dim=256)
@@ -2548,7 +2572,6 @@ if intermediate_saves and intermediates_in_subfolder is True:
     partialFolder = f'{batchFolder}/partials'
     createPath(partialFolder)
 
-
 batch_size = 1
 
 
@@ -2557,6 +2580,7 @@ def move_files(start_num, end_num, old_folder, new_folder):
         old_file = old_folder + f'/{batch_name}({batchNum})_{i:04}.png'
         new_file = new_folder + f'/{batch_name}({batchNum})_{i:04}.png'
         os.rename(old_file, new_file)
+
 
 resume_run = False  #@param{type: 'boolean'}
 run_to_resume = 'latest'  #@param{type: 'string'}
@@ -2700,14 +2724,18 @@ torch.cuda.empty_cache()
 
 # FUNCTIONS FOR GO BIG MODE
 global slices_todo
-slices_todo = 5 # Number of chunks to slice up from the original image
+slices_todo = 5  # Number of chunks to slice up from the original image
+
 
 # Input is an image, return image with mask added as an alpha channel
 def addalpha(im, mask):
     imr, img, imb, ima = im.split()
     mmr, mmg, mmb, mma = mask.split()
-    im = Image.merge('RGBA', [imr, img, imb, mma]) # we want the RGB from the original, but the transparency from the mask
-    return(im)
+    im = Image.merge('RGBA', [
+        imr, img, imb, mma
+    ])  # we want the RGB from the original, but the transparency from the mask
+    return (im)
+
 
 # take a source image and layer in the slices on top
 def mergeimgs(source, slices):
@@ -2715,27 +2743,31 @@ def mergeimgs(source, slices):
     width, height = source.size
     if gobig_horizontal == True:
         slice_height = int(height / slices_todo)
-        slice_height = 64 * math.ceil(slice_height / 64) #round slice height up to the nearest 64
+        slice_height = 64 * math.ceil(
+            slice_height / 64)  #round slice height up to the nearest 64
         paste_y = 0
         for slice in slices:
-            source.alpha_composite(slice, (0,paste_y))
+            source.alpha_composite(slice, (0, paste_y))
             paste_y += slice_height
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.ceil(slice_width / 64) #round slice width up to the nearest 64
+        slice_width = 64 * math.ceil(
+            slice_width / 64)  #round slice width up to the nearest 64
         paste_x = 0
         for slice in slices:
-            source.alpha_composite(slice, (paste_x,0))
+            source.alpha_composite(slice, (paste_x, 0))
             paste_x += slice_width
     return source
+
 
 # Slices an image into the configured number of chunks. Overlap is a quarter of the size of a chunk
 def slice(source):
     width, height = source.size
-    overlap = 64 #int(height / slices_todo / 4)
+    overlap = 64  #int(height / slices_todo / 4)
     if gobig_horizontal == True:
         slice_height = int(height / slices_todo)
-        slice_height = 64 * math.ceil(slice_height / 64) #round slice height up to the nearest 64
+        slice_height = 64 * math.ceil(
+            slice_height / 64)  #round slice height up to the nearest 64
         slice_height += overlap
         print(f'rounded slice_height is {slice_height} with overlap')
         i = 0
@@ -2750,7 +2782,8 @@ def slice(source):
             i += 1
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.ceil(slice_width / 64) #round slice width up to the nearest 64
+        slice_width = 64 * math.ceil(
+            slice_width / 64)  #round slice width up to the nearest 64
         slice_width += overlap
         print(f'rounded slice_width is {slice_width} with overlap')
         i = 0
@@ -2765,43 +2798,60 @@ def slice(source):
             i += 1
     return (slices)
 
+
 # FINALLY DO THE RUN
 try:
     if (gui):
         print("running with gui")
         prdgui.run_gui(do_run, side_x, side_y)
     else:
-        do_run()
+        if (gobig_init is None):
+            do_run()
+
         if letsgobig:
             current_time = datetime.now().strftime('%y%m%d-%H%M%S_%f')
             # Resize initial progress.png to new size
-            if cl_args.cuda != '0': #handle if a different GPU is in use
+            if cl_args.cuda != '0':  #handle if a different GPU is in use
                 progress_image = (f'progress{cl_args.cuda}.png')
                 slice_image = (f'slice{cl_args.cuda}.png')
-                original_output_image = (f'{batchFolder}/{batch_name}_original_output_{cl_args.cuda}_{current_time}.png')
-                final_output_image = (f'{batchFolder}/{batch_name}_final_output_{cl_args.cuda}_{current_time}.png')
+                original_output_image = (
+                    f'{batchFolder}/{batch_name}_original_output_{cl_args.cuda}_{current_time}.png'
+                )
+                final_output_image = (
+                    f'{batchFolder}/{batch_name}_final_output_{cl_args.cuda}_{current_time}.png'
+                )
             else:
                 progress_image = 'progress.png'
                 slice_image = 'slice.png'
-                original_output_image = (f'{batchFolder}/{batch_name}_original_output_{current_time}.png')
-                final_output_image = (f'{batchFolder}/{batch_name}_final_output_{current_time}.png')
+                original_output_image = (
+                    f'{batchFolder}/{batch_name}_original_output_{current_time}.png'
+                )
+                final_output_image = (
+                    f'{batchFolder}/{batch_name}_final_output_{current_time}.png'
+                )
+
+            if (gobig_init):
+                progress_image = gobig_init
+
             input_image = Image.open(progress_image).convert('RGBA')
             input_image.save(original_output_image)
             reside_x = side_x * 2
             reside_y = side_y * 2
-            source_image = input_image.resize((reside_x, reside_y), Image.LANCZOS)
+            source_image = input_image.resize((reside_x, reside_y),
+                                              Image.LANCZOS)
             input_image.close()
             # Slice source_image into 4 overlapping slices
             slices = slice(source_image)
             # Run PRD again for each slice, with init image paramaters, etc.
-            i = 1 # just to number the slices as they save
+            i = 1  # just to number the slices as they save
             betterslices = []
             for chunk in slices:
                 # Reset underlying systems for another run
                 print('Prepping model for next run...')
                 model, diffusion = create_model_and_diffusion(**model_config)
                 model.load_state_dict(
-                    torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
+                    torch.load(f'{model_path}/{diffusion_model}.pt',
+                               map_location='cpu'))
                 model.requires_grad_(False).eval().to(device)
                 for name, param in model.named_parameters():
                     if 'qkv' in name or 'norm' in name or 'proj' in name:
@@ -2817,25 +2867,34 @@ try:
                 args.side_x, args.side_y = chunk.size
                 fix_brightness_contrast = False
                 do_run()
-                print(f'Finished run, grabbing {progress_image} and adding it to betterslices.')
+                print(
+                    f'Finished run, grabbing {progress_image} and adding it to betterslices.'
+                )
                 resultslice = Image.open(progress_image).convert('RGBA')
                 #resultslice.save(f'slice-upscaled{i}.png')
                 betterslices.append(resultslice.copy())
-                resultslice.close() # hopefully this will allow subsequent images to actually save.
+                resultslice.close(
+                )  # hopefully this will allow subsequent images to actually save.
                 i += 1
             # For each slice, use addalpha to add an alpha mask
             if gobig_horizontal:
-                mask = Image.open('mask.png').convert('RGBA').resize(betterslices[0].size) #resize our mask to match - TODO generate this automatically
+                mask = Image.open('mask.png').convert('RGBA').resize(
+                    betterslices[0].size
+                )  #resize our mask to match - TODO generate this automatically
             if gobig_vertical:
-                mask = Image.open('maskv.png').convert('RGBA').resize(betterslices[0].size) #resize our mask to match - TODO generate this automatically
-            i = 1 # start at 1 in the list instead of 0, because we don't need/want a mask on the first (0) image
+                mask = Image.open('maskv.png').convert('RGBA').resize(
+                    betterslices[0].size
+                )  #resize our mask to match - TODO generate this automatically
+            i = 1  # start at 1 in the list instead of 0, because we don't need/want a mask on the first (0) image
             while i < slices_todo:
                 betterslices[i] = addalpha(betterslices[i], mask)
                 i += 1
             # Once we have all our images, mergeimgs back onto source.png, then save
             final_output = mergeimgs(source_image, betterslices)
             final_output.save(final_output_image)
-            print(f'\n\nGO BIG is complete!\n\n ***** NOTE *****\nYour output is saved as {final_output_image}!')
+            print(
+                f'\n\nGO BIG is complete!\n\n ***** NOTE *****\nYour output is saved as {final_output_image}!'
+            )
 
 except KeyboardInterrupt:
     pass

@@ -247,8 +247,11 @@ To specify which CUDA device to use (advanced) by device ID (default is 0):
 To HIDE the settings that get added to your output PNG's metadata, use:
  {python_example} prd.py --hidemetadata
 
-To increase resolution 2x by splitting the final image and re-rendering detail int the sections, use:
+To increase resolution 2x by splitting the final image and re-rendering detail in the sections, use:
  {python_example} prd.py --gobig
+
+To increase resolution 2x on an existing output, make sure to supply proper settings, then use:
+ {python_example} prd.py --gobiginit "some_directory/image.png"
 '''
 
 my_parser = argparse.ArgumentParser(
@@ -345,6 +348,13 @@ my_parser.add_argument(
     action='store',
     required=False,
     help='Skip initial gobig generation and use the specified image instead')
+
+my_parser.add_argument(
+    '--gobiginit',
+    action='store',
+    required=False,
+    help='An image to use to kick off GO BIG mode, skipping the initial render.'
+)
 
 cl_args = my_parser.parse_args()
 
@@ -610,13 +620,14 @@ if cl_args.gobig or cl_args.gobig_init:
     else:
         gobig_vertical = True
     n_batches = 1
-
-    if (cl_args.gobig_init):
-        gobig_init = cl_args.gobig_init
-
     print(
         'Going BIG! N-batches automatically set to 1, as only 1 output is supported.'
     )
+    if cl_args.gobiginit:
+        init_image = cl_args.gobiginit
+        print(
+            f'Using {init_image} to kickstart GO BIG. Initial render will be skipped.'
+        )
 
 if cl_args.geninit:
     geninit = True
@@ -2759,7 +2770,7 @@ def mergeimgs(source, slices):
     width, height = source.size
     if gobig_horizontal == True:
         slice_height = int(height / slices_todo)
-        slice_height = 64 * math.ceil(
+        slice_height = 64 * math.floor(
             slice_height / 64)  #round slice height up to the nearest 64
         paste_y = 0
         for slice in slices:
@@ -2767,7 +2778,7 @@ def mergeimgs(source, slices):
             paste_y += slice_height
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.ceil(
+        slice_width = 64 * math.floor(
             slice_width / 64)  #round slice width up to the nearest 64
         paste_x = 0
         for slice in slices:
@@ -2782,10 +2793,9 @@ def slice(source):
     overlap = 64  #int(height / slices_todo / 4)
     if gobig_horizontal == True:
         slice_height = int(height / slices_todo)
-        slice_height = 64 * math.ceil(
+        slice_height = 64 * math.floor(
             slice_height / 64)  #round slice height up to the nearest 64
         slice_height += overlap
-        print(f'rounded slice_height is {slice_height} with overlap')
         i = 0
         slices = []
         x = 0
@@ -2798,10 +2808,9 @@ def slice(source):
             i += 1
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.ceil(
+        slice_width = 64 * math.floor(
             slice_width / 64)  #round slice width up to the nearest 64
         slice_width += overlap
-        print(f'rounded slice_width is {slice_width} with overlap')
         i = 0
         slices = []
         x = 0
@@ -2821,9 +2830,14 @@ try:
         print("running with gui")
         prdgui.run_gui(do_run, side_x, side_y)
     else:
-        if (gobig_init is None):
+        if cl_args.gobiginit:  # skip do_run if a gobig init image was provided
+            if cl_args.cuda != '0':
+                progress_image = (f'progress{cl_args.cuda}.png')
+            else:
+                progress_image = 'progress.png'
+            shutil.copy(cl_args.gobiginit, progress_image)
+        else:
             do_run()
-
         if letsgobig:
             current_time = datetime.now().strftime('%y%m%d-%H%M%S_%f')
             # Resize initial progress.png to new size
@@ -2892,15 +2906,35 @@ try:
                 resultslice.close(
                 )  # hopefully this will allow subsequent images to actually save.
                 i += 1
+            # generate an alpha mask
+            # starts at full opacity * initial_value
+            # decrements opacity by gradient * x / width
+            if gobig_vertical:
+                alpha_gradient = Image.new('L', (args.side_x, 1), color=0xFF)
+                a = 0
+                for x in range(args.side_x):
+                    a += 4  # add 4 to alpha at each pixel, to give us a 64 pixel overlap gradient
+                    if a < 255:
+                        alpha_gradient.putpixel((x, 0), a)
+                    else:
+                        alpha_gradient.putpixel((x, 0), 255)
+                    # print '{}, {:.2f}, {}'.format(x, float(x) / width, a)
+                alpha = alpha_gradient.resize(betterslices[0].size)
             # For each slice, use addalpha to add an alpha mask
             if gobig_horizontal:
-                mask = Image.open('mask.png').convert('RGBA').resize(
-                    betterslices[0].size
-                )  #resize our mask to match - TODO generate this automatically
-            if gobig_vertical:
-                mask = Image.open('maskv.png').convert('RGBA').resize(
-                    betterslices[0].size
-                )  #resize our mask to match - TODO generate this automatically
+                alpha_gradient = Image.new('L', (1, args.side_y), color=0xFF)
+                a = 0
+                for x in range(args.side_y):
+                    a += 4  # add 4 to alpha at each pixel, to give us a 64 pixel overlap gradient
+                    if a < 255:
+                        alpha_gradient.putpixel((0, x), a)
+                    else:
+                        alpha_gradient.putpixel((0, x), 255)
+                    # print '{}, {:.2f}, {}'.format(x, float(x) / width, a)
+                alpha = alpha_gradient.resize(betterslices[0].size)
+            #add the generated alpha channel to a mask image
+            mask = Image.new('RGBA', (args.side_x, args.side_y), color=0)
+            mask.putalpha(alpha)
             i = 1  # start at 1 in the list instead of 0, because we don't need/want a mask on the first (0) image
             while i < slices_todo:
                 betterslices[i] = addalpha(betterslices[i], mask)

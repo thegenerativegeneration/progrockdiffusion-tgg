@@ -90,6 +90,7 @@ from dataclasses import dataclass
 from functools import partial
 import cv2
 import pandas as pd
+import re
 import gc
 import io
 import math
@@ -583,10 +584,6 @@ if cl_args.output:
     batch_name = cl_args.output
     print(f'Setting Output dir to {batch_name}')
 
-if cl_args.prompt:
-    text_prompts["0"] = cl_args.prompt
-    print(f'Setting prompt to {text_prompts}')
-
 if cl_args.ignoreseed:
     set_seed = 'random_seed'
     print(f'Using a random seed instead of the one provided by the JSON file.')
@@ -704,48 +701,68 @@ if clip_guidance_scale == 'auto':
         clip_guidance_scale = round(clip_guidance_scale)
     print(f'clip_guidance_scale set automatically to: {clip_guidance_scale}')
 
-# List of artists for random artist support
-artists = []
-with open('artists.txt', encoding="utf-8") as f:
-    for line in f:
-        artists.append(line.strip())
+if cl_args.prompt:
+    text_prompts["0"] = cl_args.prompt
+    print(f'Setting prompt to {text_prompts}')
 
-# If _artist_ is in any of the prompts, replace them with a random artist name
-# It's extra complicated because there can be multiple prompts per frame, multiple prompts at a given step,
-# and multiple prompts that come in at a certain step. Sigh...
-artist_change = False
+# PROMPT RANDOMIZERS
+# If any word in the prompt starts and ends with _, replace it with a random line from the corresponding text file
+# For example, _artist_ will replace with a line from artist.txt
+
+
+# Build a list of randomizers to draw from:
+def randomizer(category):
+    randomizers = []
+    with open(f'settings/{category}.txt', encoding="utf-8") as f:
+        for line in f:
+            randomizers.append(line.strip())
+    random_item = random.choice(randomizers)
+    return (random_item)
+
+
+# Search through the prompt for any _randomizer_ words and replace them accordingly
+prompt_change = False
 for k, v in text_prompts.items():
     if type(v) == list:
         newprompts = []
         for prompt in v:
-            if "_artist_" in prompt:
-                newprompt = prompt.replace("_artist_", random.choice(artists),
-                                           1)
-                artist_change = True
+            if "_" in prompt:
+                while "_" in prompt:
+                    start = prompt.index('_')
+                    end = prompt.index('_', start + 1)
+                    swap = prompt[(start + 1):end]
+                    swapped = randomizer(swap)
+                    prompt = prompt.replace(f'_{swap}_', swapped, 1)
+                newprompt = prompt
+                prompt_change = True
             else:
                 newprompt = prompt
             newprompts.append(newprompt)
-        if artist_change == True:
+        if prompt_change == True:
             v = newprompts
     else:  # to handle if the prompt is actually a multi-prompt.
         for kk, vv in v.items():
             newprompts = []
             for prompt in vv:
-                if "_artist_" in prompt:
-                    newprompt = prompt.replace("_artist_",
-                                               random.choice(artists), 1)
-                    artist_change = True
+                if "_" in prompt:
+                    while "_" in prompt:
+                        start = prompt.index('_')
+                        end = prompt.index('_', start + 1)
+                        swap = prompt[(start + 1):end]
+                        swapped = randomizer(swap)
+                        prompt = prompt.replace(f'_{swap}_', swapped, 1)
+                    newprompt = prompt
+                    prompt_change = True
                 else:
                     newprompt = prompt
                 newprompts.append(newprompt)
-            if artist_change == True:
+            if prompt_change == True:
                 vv = newprompts
-        if artist_change == True:
+        if prompt_change == True:
             v = {**v, kk: vv}
-    if artist_change == True:
+    if prompt_change == True:
         text_prompts = {**text_prompts, k: v}
-        print('Replaced _artist_ with random artist(s).')
-        print(f'New prompt is: {text_prompts}')
+        print(f'Prompt with randomizers: {text_prompts}')
 
 import torch
 
@@ -2399,7 +2416,6 @@ def parse_key_frames(string, prompt_parser=None):
     >>> parse_key_frames("10:(Apple: 1| Orange: 0), 20: (Apple: 0| Orange: 1| Peach: 1)", prompt_parser=lambda x: x.lower()))
     {10: 'apple: 1| orange: 0', 20: 'apple: 0| orange: 1| peach: 1'}
     """
-    import re
     pattern = r'((?P<frame>[0-9]+):[\s]*[\(](?P<param>[\S\s]*?)[\)])'
     frames = dict()
     for match_object in re.finditer(pattern, string):
@@ -2863,7 +2879,7 @@ try:
                 #no do the next run
                 chunk.save(slice_image)
                 args.init_image = slice_image
-                args.skip_steps = int(steps * .57)
+                args.skip_steps = int(steps * .6)
                 args.side_x, args.side_y = chunk.size
                 fix_brightness_contrast = False
                 do_run()

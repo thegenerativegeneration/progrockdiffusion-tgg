@@ -27,6 +27,18 @@ This takes all of your "myscene" settings, but then overrides some of them with 
 Some settings can be randomized, as a way to explore what is possible.
 You can see all the settings that work this way in random.json - give it a try!
 
+## Randomizers in your prompt:
+Any text in a prompt surrounded by _'s will be replaced by a random line from the corresponding text file.
+For example:
+```
+A _adjective_ _style_ of a _subject_, by _artist_, _site_
+```
+Becomes something like:
+```
+A psychotic 3D VR painting of a shop, by Wayne Barlowe, trending on 500px
+```
+Just make sure the file with your replacements exists! Some have been included but you can add whatever ones you like.
+
 ## Changing prompts:
 One incredibly cool trick is changing your prompt at a given step. This allows you to initialize your image with one prompt, but then switch to something else that provides the rest of the detail and texture to the scene.
 See change_prompt_sample.json for an idea of how this works.

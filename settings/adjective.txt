@@ -151,3 +151,8 @@ shiny
 matte
 pastel
 rainbow
+atmospheric
+moody
+spiritual
+ghostly
+ghastly

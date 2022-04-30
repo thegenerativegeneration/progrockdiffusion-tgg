@@ -2728,8 +2728,9 @@ gc.collect()
 torch.cuda.empty_cache()
 
 # FUNCTIONS FOR GO BIG MODE
-global slices_todo
-slices_todo = 5 # Number of chunks to slice up from the original image
+gobig_scale = 2 # how many multiples of the original resolution. Eventually make this configurable
+slices_todo = (gobig_scale * gobig_scale) + 1 #we want 5 total slices for a 2x increase, 4 to match the total pixel increase + 1 to cover overlap
+#overlap = ((side_x * gobig_scale) / slices_todo) / slices_todo
 
 # Input is an image, return image with mask added as an alpha channel
 def addalpha(im, mask):
@@ -2740,31 +2741,33 @@ def addalpha(im, mask):
 
 # take a source image and layer in the slices on top
 def mergeimgs(source, slices):
+    global slices_todo
     source.convert("RGBA")
     width, height = source.size
     if gobig_horizontal == True:
         slice_height = int(height / slices_todo)
-        slice_height = 64 * math.floor(slice_height / 64) #round slice height up to the nearest 64
+        slice_height = 64 * math.floor(slice_height / 64) #round slice height down to the nearest 64
         paste_y = 0
         for slice in slices:
             source.alpha_composite(slice, (0,paste_y))
             paste_y += slice_height
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.floor(slice_width / 64) #round slice width up to the nearest 64
+        slice_width = 64 * math.floor(slice_width / 64) #round slice width down to the nearest 64
         paste_x = 0
         for slice in slices:
             source.alpha_composite(slice, (paste_x,0))
             paste_x += slice_width
     return source
 
-# Slices an image into the configured number of chunks. Overlap is a quarter of the size of a chunk
+# Slices an image into the configured number of chunks. Overlap is currently 64px but should become dynamic
 def slice(source):
+    global slices_todo
     width, height = source.size
     overlap = 64 #int(height / slices_todo / 4)
     if gobig_horizontal == True:
         slice_height = int(height / slices_todo)
-        slice_height = 64 * math.floor(slice_height / 64) #round slice height up to the nearest 64
+        slice_height = 64 * math.floor(slice_height / 64) #round slice height down to the nearest 64
         slice_height += overlap
         i = 0
         slices = []
@@ -2778,7 +2781,11 @@ def slice(source):
             i += 1
     if gobig_vertical == True:
         slice_width = int(width / slices_todo)
-        slice_width = 64 * math.floor(slice_width / 64) #round slice width up to the nearest 64
+        slice_width = 64 * math.floor(slice_width / 64) #round slice width down to the nearest 64
+        remainder = width - (slice_width * slices_todo)
+        while remainder > 0:
+            slices_todo += 1
+            remainder = remainder - slice_width
         slice_width += overlap
         i = 0
         slices = []
@@ -2821,9 +2828,9 @@ try:
                 final_output_image = (f'{batchFolder}/{batch_name}_final_output_{current_time}.png')
             input_image = Image.open(progress_image).convert('RGBA')
             input_image.save(original_output_image)
-            reside_x = side_x * 2
-            reside_y = side_y * 2
-            source_image = input_image.resize((reside_x, reside_y), Image.LANCZOS)
+            reside_x = side_x * gobig_scale
+            reside_y = side_y * gobig_scale
+            source_image = input_image.resize((reside_x, reside_y), Image.BICUBIC)
             input_image.close()
             # Slice source_image into 4 overlapping slices
             slices = slice(source_image)
@@ -2853,9 +2860,8 @@ try:
                 do_run()
                 print(f'Finished run, grabbing {progress_image} and adding it to betterslices.')
                 resultslice = Image.open(progress_image).convert('RGBA')
-                #resultslice.save(f'slice-upscaled{i}.png')
                 betterslices.append(resultslice.copy())
-                resultslice.close() # hopefully this will allow subsequent images to actually save.
+                resultslice.close()
                 i += 1
             # generate an alpha mask
             # starts at full opacity * initial_value
@@ -2869,8 +2875,7 @@ try:
                         alpha_gradient.putpixel((x, 0), a)
                     else:
                         alpha_gradient.putpixel((x, 0), 255)
-                    # print '{}, {:.2f}, {}'.format(x, float(x) / width, a)
-                alpha = alpha_gradient.resize(betterslices[0].size)
+                alpha = alpha_gradient.resize(betterslices[0].size, Image.BICUBIC)
             # For each slice, use addalpha to add an alpha mask
             if gobig_horizontal:
                 alpha_gradient = Image.new('L', (1, args.side_y), color=0xFF)
@@ -2881,8 +2886,7 @@ try:
                         alpha_gradient.putpixel((0, x), a)
                     else:
                         alpha_gradient.putpixel((0, x), 255)
-                    # print '{}, {:.2f}, {}'.format(x, float(x) / width, a)
-                alpha = alpha_gradient.resize(betterslices[0].size)
+                alpha = alpha_gradient.resize(betterslices[0].size, Image.BICUBIC)
             #add the generated alpha channel to a mask image
             mask = Image.new('RGBA', (args.side_x, args.side_y), color=0)
             mask.putalpha(alpha)

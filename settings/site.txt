@@ -6,6 +6,7 @@ trending on 500px
 trending on Getty Images
 trending on DeviantArt
 trending on Pixiv
+trending on IllustrationX
 featured on ArtStation
 featured on ConceptArtWorld
 featured on Flickr
@@ -14,3 +15,4 @@ featured on 500px
 featured on Getty Images
 featured on DeviantArt
 featured on Pixiv
+featured on IllustrationX

@@ -211,6 +211,7 @@ sharpen_preset = 'Off'  #@param ['Off', 'Faster', 'Fast', 'Slow', 'Very Slow']
 keep_unsharp = False  #@param{type: 'boolean'}
 animation_mode = "None" # "Video Input", "2D"
 gobig_orientation = "vertical"
+gobig_scale = 2
 
 # Command Line parse
 import argparse
@@ -570,6 +571,8 @@ for setting_arg in cl_args.settings:
                 animation_mode = (settings_file['animation_mode'])
             if is_json_key_present(settings_file, 'gobig_orientation'):
                 gobig_orientation = (settings_file['gobig_orientation'])
+            if is_json_key_present(settings_file, 'gobig_scale'):
+                gobig_scale = int(settings_file['gobig_scale'])
 
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +
@@ -615,6 +618,8 @@ if cl_args.gobig:
     if cl_args.gobiginit:
         init_image = cl_args.gobiginit
         print(f'Using {init_image} to kickstart GO BIG. Initial render will be skipped.')
+    else:
+        cl_args.gobiginit = None
 
 if cl_args.geninit:
     geninit = True
@@ -1863,6 +1868,7 @@ def save_settings():
         'sharpen_preset': sharpen_preset,
         'keep_unsharp': keep_unsharp,
         'gobig_orientation': gobig_orientation,
+        'gobig_scale': gobig_scale,
     }
     with open(f"{batchFolder}/{batch_name}_{batchNum}_settings.json",
               "w+",
@@ -2713,22 +2719,22 @@ args = {
 
 args = SimpleNamespace(**args)
 
-model, diffusion = create_model_and_diffusion(**model_config)
-print(f'Prepping model: {model_path}/{diffusion_model}.pt')
-model.load_state_dict(
-    torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
-model.requires_grad_(False).eval().to(device)
-for name, param in model.named_parameters():
-    if 'qkv' in name or 'norm' in name or 'proj' in name:
-        param.requires_grad_()
-if model_config['use_fp16']:
-    model.convert_to_fp16()
-
-gc.collect()
-torch.cuda.empty_cache()
+if cl_args.gobiginit == None:
+    model, diffusion = create_model_and_diffusion(**model_config)
+    print(f'Prepping model: {model_path}/{diffusion_model}.pt')
+    model.load_state_dict(
+        torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
+    model.requires_grad_(False).eval().to(device)
+    for name, param in model.named_parameters():
+        if 'qkv' in name or 'norm' in name or 'proj' in name:
+            param.requires_grad_()
+    if model_config['use_fp16']:
+        model.convert_to_fp16()
+    gc.collect()
+    torch.cuda.empty_cache()
 
 # FUNCTIONS FOR GO BIG MODE
-gobig_scale = 2 # how many multiples of the original resolution. Eventually make this configurable
+#gobig_scale = 2 # how many multiples of the original resolution. Eventually make this configurable
 slices_todo = (gobig_scale * gobig_scale) + 1 #we want 5 total slices for a 2x increase, 4 to match the total pixel increase + 1 to cover overlap
 #overlap = ((side_x * gobig_scale) / slices_todo) / slices_todo
 
@@ -2805,7 +2811,7 @@ try:
         print("running with gui")
         prdgui.run_gui(do_run, side_x, side_y)
     else:
-        if cl_args.gobiginit: # skip do_run if a gobig init image was provided
+        if cl_args.gobiginit is not None: # skip do_run if a gobig init image was provided
             if cl_args.cuda != '0':
                 progress_image = (f'progress{cl_args.cuda}.png')
             else:

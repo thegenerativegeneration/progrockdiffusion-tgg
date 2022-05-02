@@ -28,7 +28,7 @@ Some settings can be randomized, as a way to explore what is possible.
 You can see all the settings that work this way in random.json - give it a try!
 
 ## Randomizers in your prompt:
-Any text in a prompt surrounded by _'s will be replaced by a random line from the corresponding text file.
+Any text in a prompt surrounded by _'s will be replaced by a random line from the corresponding text file in the settings folder.
 For example:
 ```
 A _adjective_ _style_ of a _subject_, by _artist_, _site_

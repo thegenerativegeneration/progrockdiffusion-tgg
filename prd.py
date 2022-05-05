@@ -253,7 +253,10 @@ To increase resolution 2x by splitting the final image and re-rendering detail i
  {python_example} prd.py --gobig
 
 To increase resolution 2x on an existing output, make sure to supply proper settings, then use:
- {python_example} prd.py --gobiginit "some_directory/image.png"
+ {python_example} prd.py --gobig --gobiginit "some_directory/image.png"
+
+If you already upscaled your gobiginit image, you can skip the resizing process. Provide the scaling factor used:
+ {python_example} prd.py --gobig --gobiginit "some_directory/image.png" --gobiginit_scaled 2
 '''
 
 my_parser = argparse.ArgumentParser(
@@ -349,6 +352,18 @@ my_parser.add_argument(
     required=False,
     help=
     'An image to use to kick off GO BIG mode, skipping the initial render.'
+)
+
+my_parser.add_argument(
+    '--gobiginit_scaled',
+    type=int,
+    nargs='?',
+    action='store',
+    required=False,
+    default=False,
+    const=2,
+    help=
+    'If you already scaled your gobiginit image, add this option along with the multiplier used (default 2)'
 )
 
 cl_args = my_parser.parse_args()
@@ -618,8 +633,23 @@ if cl_args.gobig:
     if cl_args.gobiginit:
         init_image = cl_args.gobiginit
         print(f'Using {init_image} to kickstart GO BIG. Initial render will be skipped.')
+        # check to make sure it is a multiple of 64, otherwise resize it and let the user know.
+        temp_image = Image.open(init_image)
+        s_width, s_height = temp_image.size
+        reside_x = (s_width // 64) * 64
+        reside_y = (s_height// 64) * 64
+        if reside_x != s_width or reside_y != s_height:
+            print('ERROR: Your go big init resolution was NOT a multiple of 64.')
+            print('ERROR: Please resize your image.')
+            raise Exception("Exiting due to improperly sized go big init.")
+        side_x, side_y = temp_image.size
+        width_height[0] = side_x
+        width_height[1] = side_y
+        temp_image.close
     else:
         cl_args.gobiginit = None
+    if cl_args.gobiginit_scaled != False:
+        gobig_scale = cl_args.gobiginit_scaled
 
 if cl_args.geninit:
     geninit = True
@@ -1618,7 +1648,6 @@ def do_run():
                                     if frame_num == 0:
                                         save_settings()
                                     if args.animation_mode != "None":
-                                        print('saving prev frame for animation') #debug
                                         image.save('prevFrame.png')
                                     if args.sharpen_preset != "Off" and animation_mode == "None":
                                         imgToSharpen = image
@@ -2090,7 +2119,7 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
   model_secondary_link = 'https://the-eye.eu/public/AI/models/v-diffusion/secondary_model_imagenet_2.pth'
 
   model_256_link_fb = 'https://www.dropbox.com/s/9tqnqo930mpnpcn/256x256_diffusion_uncond.pt'
-  model_512_link_fb = 'https://www.dropbox.com/s/yjqvhu6l6l0r2eh/512x512_diffusion_uncond_finetune_008100.pt'
+  model_512_link_fb = 'https://huggingface.co/lowlevelware/512x512_diffusion_unconditional_ImageNet/resolve/main/512x512_diffusion_uncond_finetune_008100.pt'
   model_secondary_link_fb = 'https://www.dropbox.com/s/luv4fezod3r8d2n/secondary_model_imagenet_2.pth'
 
   model_256_path = f'{model_path}/256x256_diffusion_uncond.pt'
@@ -2319,25 +2348,6 @@ if SLIPL16:
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])
 lpips_model = lpips.LPIPS(net='vgg').to(device)
-"""# 3. Settings"""
-# REMOVED FOR COMMAND LINE ARGS
-#@markdown ####**Basic Settings:**
-#batch_name = 'SpyNovel' #@param{type: 'string'}
-#steps = 600 #@param [25,50,100,150,250,500,1000]{type: 'raw', allow-input: true}
-#width_height = [512, 832]#@param{type: 'raw'}
-#clip_guidance_scale = 5000 #@param{type: 'number'}
-#tv_scale =  0#@param{type: 'number'}
-#range_scale =   150#@param{type: 'number'}
-#sat_scale =   0#@param{type: 'number'}
-#cutn_batches = 1  #@param{type: 'number'}
-#skip_augs = False#@param{type: 'boolean'}
-
-#@markdown ---
-
-#@markdown ####**Init Settings:**
-#init_image = None #@param{type: 'string'}
-#init_scale = 1000 #@param{type: 'integer'}
-#skip_steps = 0 #@param{type: 'integer'}
 
 #Get corrected sizes
 side_x = (width_height[0] // 64) * 64
@@ -2771,7 +2781,6 @@ if cl_args.gobiginit == None:
 #gobig_scale = 2 # how many multiples of the original resolution. Eventually make this configurable
 slices_todo = (gobig_scale * gobig_scale) + 1 #we want 5 total slices for a 2x increase, 4 to match the total pixel increase + 1 to cover overlap
 #overlap = ((side_x * gobig_scale) / slices_todo) / slices_todo
-
 # Input is an image, return image with mask added as an alpha channel
 def addalpha(im, mask):
     imr, img, imb, ima = im.split()
@@ -2792,8 +2801,15 @@ def mergeimgs(source, slices):
             source.alpha_composite(slice, (0,paste_y))
             paste_y += slice_height
     if gobig_vertical == True:
-        slice_width = int(width / slices_todo)
-        slice_width = 64 * math.floor(slice_width / 64) #round slice width down to the nearest 64
+        slice_width, slice_height = slices[0].size
+        slice_width -= 64 #remove overlap
+        print(f'slice_width for merge is {slice_width}')
+        #slice_width = int(width / slices_todo)
+        #slice_width = 64 * math.floor(slice_width / 64) #round slice width down to the nearest 64
+        #remainder = width - (slice_width * slices_todo)
+        #while remainder > 0:
+        #    slices_todo += 1
+        #    remainder = remainder - slice_width
         paste_x = 0
         for slice in slices:
             source.alpha_composite(slice, (paste_x,0))
@@ -2827,6 +2843,7 @@ def slice(source):
             slices_todo += 1
             remainder = remainder - slice_width
         slice_width += overlap
+        print(f'slice_width is {slice_width}')
         i = 0
         slices = []
         x = 0
@@ -2850,7 +2867,7 @@ try:
                 progress_image = (f'progress{cl_args.cuda}.png')
             else:
                 progress_image = 'progress.png'
-            shutil.copy(cl_args.gobiginit, progress_image)
+            shutil.copy(init_image, progress_image)
         else:
             do_run()
         if letsgobig:
@@ -2868,18 +2885,25 @@ try:
                 final_output_image = (f'{batchFolder}/{batch_name}_final_output_{current_time}.png')
             input_image = Image.open(progress_image).convert('RGBA')
             input_image.save(original_output_image)
-            reside_x = side_x * gobig_scale
-            reside_y = side_y * gobig_scale
-            source_image = input_image.resize((reside_x, reside_y), Image.BICUBIC)
+            print(f'cl_args.gobiginit_scaled is {cl_args.gobiginit_scaled}')
+            print(f'size of input_image is {input_image.size}')
+            print(f'side_x and side_y are {side_x} and {side_y}')
+            if cl_args.gobiginit_scaled == False:
+                reside_x = side_x * gobig_scale
+                reside_y = side_y * gobig_scale
+                source_image = input_image.resize((reside_x, reside_y), Image.LANCZOS)
+            else:
+                source_image = Image.open(progress_image).convert('RGBA')
+
             input_image.close()
-            # Slice source_image into 4 overlapping slices
+            # Slice source_image into overlapping slices
             slices = slice(source_image)
             # Run PRD again for each slice, with init image paramaters, etc.
             i = 1 # just to number the slices as they save
             betterslices = []
             for chunk in slices:
                 # Reset underlying systems for another run
-                print('Prepping model for next run...')
+                print(f'Rendering slice {i} of {slices_todo} ...')
                 model, diffusion = create_model_and_diffusion(**model_config)
                 model.load_state_dict(
                     torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
@@ -2896,6 +2920,7 @@ try:
                 args.init_image = slice_image
                 args.skip_steps = int(steps * .6)
                 args.side_x, args.side_y = chunk.size
+                side_x, side_y = chunk.size
                 fix_brightness_contrast = False
                 do_run()
                 print(f'Finished run, grabbing {progress_image} and adding it to betterslices.')

@@ -795,6 +795,35 @@ for k, v in text_prompts.items():
         text_prompts = {**text_prompts, k: v}
         print(f'Prompt with randomizers: {text_prompts}')
 
+# INIT IMAGE RANDOMIZER
+# If the setting for init_image is a word between two underscores, we'll pull a random image from that directory,
+# and set our size accordingly.
+
+# randomly pick a file name from a directory:
+def random_file(directory):
+    files = []
+    files = os.listdir(f'{initDirPath}/{directory}')
+    file = random.choice(files)
+    print(f'debug: randomly chosen init image is {file}')
+    return(file)
+
+# Check for init randomizer in settings, and configure a random init if found
+if init_image.startswith("_") and init_image.endswith("_"):
+    randominit_dir = (init_image[1:])
+    randominit_dir = (randominit_dir[:-1]) # parse out the directory name
+    print(f"Randomly picking an init image from {initDirPath}/{randominit_dir}")
+    init_image = (f'{initDirPath}/{randominit_dir}/{random_file(randominit_dir)}')
+    print(f"New init image is {init_image}")
+    # check to see if the image matches the configured size, if not we'll resize it
+    temp = Image.open(init_image).convert('RGB')
+    temp_width, temp_height = temp.size
+    if (temp_width != width_height[0]) or (temp_height != width_height[1]):
+        print('Randomly chosen init image does not match width and height from settings.')
+        print('It will be resized as temp_init.png and used as your init.')
+        temp = temp.resize(width_height, Image.LANCZOS)
+        temp.save('temp_init.png')
+        init_image = 'temp_init.png'
+
 import torch
 
 # Decide if we're using CPU or GPU, with appropriate settings depending...

@@ -80,5 +80,6 @@
     "low_brightness_adjust": true,
     "sharpen_preset": "Off",
     "gobig_orientation": "vertical",
+    "gobig_scale": 2,
     "keep_unsharp": false
 }

@@ -39,6 +39,16 @@ A psychotic 3D VR painting of a shop, by Wayne Barlowe, trending on 500px
 ```
 Just make sure the file with your replacements exists! Some have been included but you can add whatever ones you like.
 
+## Pick a random init image
+If you set init_image to:
+```
+"_directory_"
+```
+A random image will be chosen from inside "init_images/directory". (note specifically inside init_images)
+Whatever word you use above is the name of the subdirectory it will pick from within.
+
+Please note: If the chosen file does not match your configured width and height, it will be resized as a temporary file and used.
+
 ## Changing prompts:
 One incredibly cool trick is changing your prompt at a given step. This allows you to initialize your image with one prompt, but then switch to something else that provides the rest of the detail and texture to the scene.
 See change_prompt_sample.json for an idea of how this works.

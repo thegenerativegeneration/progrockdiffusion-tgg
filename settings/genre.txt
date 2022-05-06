@@ -15,3 +15,5 @@ medieval
 renaissance
 vintage
 weird west
+synthwave
+gothic

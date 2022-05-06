@@ -141,8 +141,6 @@ deteriorating
 sturdy
 rickety
 dreamlike
-art deco
-art nouveau
 painterly
 wispy
 metallic
@@ -156,3 +154,22 @@ moody
 spiritual
 ghostly
 ghastly
+biomechanical
+petrified
+illuminated
+glowing
+fiery
+metallic
+retrofuturistic
+giant
+hyperdetailed
+shadowy
+supersized
+incredibly detailed
+otherworldly
+cozy
+gentle
+sprawling
+dystopian
+apocalyptic
+primordial

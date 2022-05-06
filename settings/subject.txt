@@ -117,3 +117,31 @@ an umbrella
 the invention
 a group
 birds
+desk
+study room
+cityscape
+metropolis
+megalopolis
+shaman
+grassy field
+forest
+kingdom
+waterfall
+time machine
+portal
+doorway
+alley
+cave
+tunnel
+engine room
+armored vehicle
+factory
+restaurant
+stadium
+highlands
+valley
+mansion
+river
+volcano
+ocean floor
+ocean

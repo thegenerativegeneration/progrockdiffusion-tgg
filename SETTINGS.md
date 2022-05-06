@@ -35,13 +35,14 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **fuzzy_prompt** | false | Controls whether to add multiple noisy prompts to the prompt losses
 | **rand_mag** | 0.05 | Controls how far it can stray from your prompt - not used unless either fuzzy_prompt is true, or an init image is used
 | **eta** | "auto" | Has to do with how much the generator can stray from your prompt. Affected by steps, so "auto" will calculate a good value.
-| **diffusion_model** | "512x512_diffusion_uncond_finetune_008100",
+| **diffusion_model** | "512x512_diffusion_uncond_finetune_008100", or "256x256_diffusion_uncond"
 | **use_secondary_model** | true | Reduces memory and improves speed, potentially at a loss of quality
 | **diffusion_steps** | 1000 | Note: The code seems to calculate this no matter what you put in, so might as well leave it
 | **sampling_mode** | "plms"  | Options are "plms" or "ddim" - plms can reach a nice image in fewer steps, but may not look as good as ddim.
 | **ViTB32** | true | Enable or disable the VitB32 CLIP model. Low memory, low accuracy
 | **ViTB16** | true | Enable or disable the VitB16 CLIP model. Med memory, high accuracy
-| **ViTL14** | false | Enable or disable the VitB32 CLIP model. Very high memory, very high accuracy
+| **ViTL14** | false | Enable or disable the ViTL14 CLIP model. Very high memory, very high accuracy
+| **ViTL14_336** | false | Enable or disable the ViTL14_336 CLIP model. Extremely high memory, very high accuracy
 | **RN101** | false | Enable or disable the VitB32 CLIP model. Low memory, low accuracy
 | **RN50** | true | Enable or disable the VitB32 CLIP model. Med memory, med accuracy
 | **RN50x4** | false | Enable or disable the VitB32 CLIP model. High memory, high accuracy

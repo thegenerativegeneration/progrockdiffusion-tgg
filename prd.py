@@ -808,21 +808,22 @@ def random_file(directory):
     return(file)
 
 # Check for init randomizer in settings, and configure a random init if found
-if init_image.startswith("_") and init_image.endswith("_"):
-    randominit_dir = (init_image[1:])
-    randominit_dir = (randominit_dir[:-1]) # parse out the directory name
-    print(f"Randomly picking an init image from {initDirPath}/{randominit_dir}")
-    init_image = (f'{initDirPath}/{randominit_dir}/{random_file(randominit_dir)}')
-    print(f"New init image is {init_image}")
-    # check to see if the image matches the configured size, if not we'll resize it
-    temp = Image.open(init_image).convert('RGB')
-    temp_width, temp_height = temp.size
-    if (temp_width != width_height[0]) or (temp_height != width_height[1]):
-        print('Randomly chosen init image does not match width and height from settings.')
-        print('It will be resized as temp_init.png and used as your init.')
-        temp = temp.resize(width_height, Image.LANCZOS)
-        temp.save('temp_init.png')
-        init_image = 'temp_init.png'
+if init_image != None:
+    if init_image.startswith("_") and init_image.endswith("_"):
+        randominit_dir = (init_image[1:])
+        randominit_dir = (randominit_dir[:-1]) # parse out the directory name
+        print(f"Randomly picking an init image from {initDirPath}/{randominit_dir}")
+        init_image = (f'{initDirPath}/{randominit_dir}/{random_file(randominit_dir)}')
+        print(f"New init image is {init_image}")
+        # check to see if the image matches the configured size, if not we'll resize it
+        temp = Image.open(init_image).convert('RGB')
+        temp_width, temp_height = temp.size
+        if (temp_width != width_height[0]) or (temp_height != width_height[1]):
+            print('Randomly chosen init image does not match width and height from settings.')
+            print('It will be resized as temp_init.png and used as your init.')
+            temp = temp.resize(width_height, Image.LANCZOS)
+            temp.save('temp_init.png')
+            init_image = 'temp_init.png'
 
 import torch
 

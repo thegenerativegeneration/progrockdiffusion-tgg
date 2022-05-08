@@ -808,13 +808,13 @@ def random_file(directory):
     return(file)
 
 # Check for init randomizer in settings, and configure a random init if found
-init_image_name  = init_image
+init_image_OriginalPath  = init_image
 if init_image != None:
     if init_image.startswith("_") and init_image.endswith("_"):
         randominit_dir = (init_image[1:])
         randominit_dir = (randominit_dir[:-1]) # parse out the directory name
         print(f"Randomly picking an init image from {initDirPath}/{randominit_dir}")
-        init_image_name = init_image = (f'{initDirPath}/{randominit_dir}/{random_file(randominit_dir)}')
+        init_image_OriginalPath = init_image = (f'{initDirPath}/{randominit_dir}/{random_file(randominit_dir)}')
         print(f"New init image is {init_image}")
         # check to see if the image matches the configured size, if not we'll resize it
         temp = Image.open(init_image).convert('RGB')
@@ -1626,7 +1626,7 @@ def do_run():
                                     metadata.add_text("seed", str(seed))
                                     metadata.add_text("steps", str(steps))
                                     metadata.add_text("init_image",
-                                                      str(init_image_name))
+                                                      str(init_image_OriginalPath))
                                     metadata.add_text("skip_steps",
                                                       str(skip_steps))
                                     metadata.add_text("clip_guidance_scale",

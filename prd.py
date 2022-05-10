@@ -178,6 +178,7 @@ RN50x64 = False
 cut_overview = "[12]*400+[4]*600"
 cut_innercut = "[4]*400+[12]*600"
 cut_ic_pow = 1
+cut_ic_pow_final = "None"
 cut_icgray_p = "[0.2]*400+[0]*600"
 key_frames = True
 angle = "0:(0)"
@@ -509,6 +510,10 @@ for setting_arg in cl_args.settings:
                 cut_innercut = (settings_file['cut_innercut'])
             if is_json_key_present(settings_file, 'cut_ic_pow'):
                 cut_ic_pow = clampval(0.5, (settings_file['cut_ic_pow']), 100)
+            if is_json_key_present(settings_file, 'cut_ic_pow_final'):
+                cut_ic_pow_final = (settings_file['cut_ic_pow_final'])
+                if type(cut_ic_pow_final) is not str:
+                    cut_ic_pow_final = clampval(0.5, (settings_file['cut_ic_pow_final']), 100)
             if is_json_key_present(settings_file, 'cut_icgray_p'):
                 cut_icgray_p = (settings_file['cut_icgray_p'])
             if is_json_key_present(settings_file, 'key_frames'):
@@ -804,7 +809,6 @@ def random_file(directory):
     files = []
     files = os.listdir(f'{initDirPath}/{directory}')
     file = random.choice(files)
-    print(f'debug: randomly chosen init image is {file}')
     return(file)
 
 # Check for init randomizer in settings, and configure a random init if found
@@ -871,6 +875,11 @@ def ease(num, t):
 def interp(t):
     return 3 * t**2 - 2 * t**3
 
+# return a number between two numbers in a given range
+def val_interpolate(x1: float, x2: float, y1: float, y2: float, x: float):
+    """Perform linear interpolation for x between (x1,y1) and (x2,y2) """
+
+    return ((y2 - y1) * x + x2 * y1 - x1 * y2) / (x2 - x1)
 
 def perlin(width, height, scale=10, device=None):
     gx, gy = torch.randn(2, width + 1, height + 1, 1, 1, device=device)
@@ -1468,11 +1477,18 @@ def do_run():
                         except:
                             input_resolution = 224
 
+                        temp_ic_pow = 0.0
+                        if type(args.cut_ic_pow_final) is int:
+                            # interpolate value if we have a range of cut_ic_pow to do
+                            percent_done = (steps - cur_t) / steps
+                            temp_ic_pow = val_interpolate(float(args.cut_ic_pow), 0.0, float(args.cut_ic_pow_final), 1.0, float(percent_done))
+                        else:
+                            temp_ic_pow = args.cut_ic_pow
                         cuts = MakeCutoutsDango(
                             input_resolution,
                             Overview=args.cut_overview[1000 - t_int],
                             InnerCrop=args.cut_innercut[1000 - t_int],
-                            IC_Size_Pow=args.cut_ic_pow,
+                            IC_Size_Pow=temp_ic_pow,
                             IC_Grey_P=args.cut_icgray_p[1000 - t_int])
                         clip_in = normalize(cuts(x_in.add(1).div(2)))
                         image_embeds = model_stat["clip_model"].encode_image(
@@ -1896,6 +1912,7 @@ def save_settings():
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
+        'cut_ic_pow': cut_ic_pow_final,
         'cut_icgray_p': str(cut_icgray_p),
         'animation_mode': animation_mode,
         'key_frames': key_frames,
@@ -2773,6 +2790,7 @@ args = {
     'cut_overview': eval(cut_overview),
     'cut_innercut': eval(cut_innercut),
     'cut_ic_pow': cut_ic_pow,
+    'cut_ic_pow_final': cut_ic_pow_final,
     'cut_icgray_p': eval(cut_icgray_p),
     'intermediate_saves': intermediate_saves,
     'intermediates_in_subfolder': intermediates_in_subfolder,

@@ -826,7 +826,7 @@ if init_image != None:
         if (temp_width != width_height[0]) or (temp_height != width_height[1]):
             print('Randomly chosen init image does not match width and height from settings.')
             print('It will be resized as temp_init.png and used as your init.')
-            temp = temp.resize(width_height, Image.LANCZOS)
+            temp = temp.resize(width_height, Image.Resampling.LANCZOS)
             temp.save('temp_init.png')
             init_image = 'temp_init.png'
 import torch
@@ -1410,7 +1410,7 @@ def do_run():
         init = None
         if init_image is not None:
             init = Image.open(fetch(init_image)).convert('RGB')
-            init = init.resize((args.side_x, args.side_y), Image.LANCZOS)
+            init = init.resize((args.side_x, args.side_y), Image.Resampling.LANCZOS)
             init = TF.to_tensor(init).to(device).unsqueeze(0).mul(2).sub(1)
 
         if args.perlin_init:
@@ -2720,12 +2720,18 @@ if resume_run:
             move_files(start_frame, existing_frames, batchFolder, retainFolder)
 else:
     start_frame = 0
-    batchNum = len(glob(batchFolder + "/*.json"))
-    while path.isfile(
-            f"{batchFolder}/{batch_name}({batchNum})_settings.json"
-    ) is True or path.isfile(
-            f"{batchFolder}/{batch_name}-{batchNum}_settings.json") is True:
-        batchNum += 1
+    #batchNum = len(glob(batchFolder + "/*.json"))
+    #changing old naming method -- intstead of counting files, take the highest numbered file + 1
+    files = os.listdir(batchFolder)
+    count = 0
+    filenums = []
+    for file in files:
+        if batch_name in file and ".json" in file:
+            start = file.index('_')
+            end = file.index('_',start+1)
+            filenum = int(file[(start + 1):end])
+            filenums.append(filenum)
+    batchNum = max(filenums) + 1
 
 print(f'Starting Run: {batch_name}({batchNum}) at frame {start_frame}')
 
@@ -2939,7 +2945,7 @@ try:
             if cl_args.gobiginit_scaled == False:
                 reside_x = side_x * gobig_scale
                 reside_y = side_y * gobig_scale
-                source_image = input_image.resize((reside_x, reside_y), Image.LANCZOS)
+                source_image = input_image.resize((reside_x, reside_y), Image.Resampling.LANCZOS)
             else:
                 source_image = Image.open(progress_image).convert('RGBA')
 
@@ -2988,7 +2994,7 @@ try:
                         alpha_gradient.putpixel((x, 0), a)
                     else:
                         alpha_gradient.putpixel((x, 0), 255)
-                alpha = alpha_gradient.resize(betterslices[0].size, Image.BICUBIC)
+                alpha = alpha_gradient.resize(betterslices[0].size, Image.Resampling.BICUBIC)
             # For each slice, use addalpha to add an alpha mask
             if gobig_horizontal:
                 alpha_gradient = Image.new('L', (1, args.side_y), color=0xFF)
@@ -2999,7 +3005,7 @@ try:
                         alpha_gradient.putpixel((0, x), a)
                     else:
                         alpha_gradient.putpixel((0, x), 255)
-                alpha = alpha_gradient.resize(betterslices[0].size, Image.BICUBIC)
+                alpha = alpha_gradient.resize(betterslices[0].size, Image.Resampling.BICUBIC)
             #add the generated alpha channel to a mask image
             mask = Image.new('RGBA', (args.side_x, args.side_y), color=0)
             mask.putalpha(alpha)

@@ -178,3 +178,4 @@ psychadelic
 groovy
 minimalist
 cluttered
+dilapidated

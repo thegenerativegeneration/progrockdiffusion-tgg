@@ -52,6 +52,7 @@
     "cut_overview": "[5]*400+[1]*600",
     "cut_innercut": "[1]*400+[5]*600",
     "cut_ic_pow": 1,
+    "cut_ic_pow_final": "None",
     "cut_icgray_p": "[0.2]*400+[0]*600",
     "animation_mode": "None",
     "key_frames": true,

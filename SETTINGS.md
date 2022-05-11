@@ -50,7 +50,8 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **RN50x64** | false | Enable or disable the VitB32 CLIP model. Extremely high memory, unknown accuracy
 | **cut_overview** | "[12]\*400+[4]\*600" | How many "big picture" passes to do. More towards the start, less later, is the general idea
 | **cut_innercut** | "[4]\*400+[12]\*600" | Conversely, how many detail passes to do. Fewer at the start, then get more detailed
-| **cut_ic_pow** | 1 | Anyone? Beuller?
+| **cut_ic_pow** | 1 | A higher number can add more detail, but may create unwanted fine lines (value range: 0.5 to 100)
+| **cut_ic_pow_final** | "None" |If set, cut_ic_pow will be calculated each step, starting at cut_ic_pow and continuing toward cut_ic_pow_final by the end
 | **cut_icgray_p** | "[0.2]\*400+[0]\*600" | Anyone? Beuller?
 | **gobig_orientation** | "vertical" | Which direction to do slices for gobig mode. Options are vertical or horizontal, but vertical is best in most cases
 | **animation_mode** | None | Animation mode. Options are "None", "2D", "Video Input" - CAPS MATTER

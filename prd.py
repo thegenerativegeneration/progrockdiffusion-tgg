@@ -367,6 +367,14 @@ my_parser.add_argument(
     'If you already scaled your gobiginit image, add this option along with the multiplier used (default 2)'
 )
 
+my_parser.add_argument(
+    '--esrgan',
+    action='store_true',
+    required=False,
+    help=
+    'Resize your output with ESRGAN (realesrgan-ncnn-vulkan must be in your path).'
+)
+
 cl_args = my_parser.parse_args()
 
 
@@ -1704,6 +1712,15 @@ def do_run():
                                     else:
                                         image.save(f'{batchFolder}/{filename}',
                                                    pnginfo=metadata)
+                                        if cl_args.esrgan:
+                                            print('Resizing with ESRGAN')
+                                            try:
+                                                subprocess.run([
+                                                   'realesrgan-ncnn-vulkan.exe', '-i', f'{batchFolder}/{filename}', '-o', f'{batchFolder}/ESRGAN-{filename}'
+                                                   ], stdout=subprocess.PIPE).stdout.decode('utf-8')
+                                            except:
+                                                print('ESRGAN resize failed. Make sure realesrgan-ncnn-vulkan is in your path (or in this directory)')
+
                                     if args.animation_mode == "None" and letsgobig == False:
                                         print('Incrementing seed by one.')
                                         seed = seed + 1
@@ -2731,7 +2748,10 @@ else:
             end = file.index('_',start+1)
             filenum = int(file[(start + 1):end])
             filenums.append(filenum)
-    batchNum = max(filenums) + 1
+    try:
+        batchNum = max(filenums) + 1
+    except:
+        batchNum = 0
 
 print(f'Starting Run: {batch_name}({batchNum}) at frame {start_frame}')
 

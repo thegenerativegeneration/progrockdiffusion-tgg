@@ -86,6 +86,7 @@ if sys.platform == 'win32':
 #Uncomment the below line if you're getting an error about OMP: Error #15.
 #os.environ['KMP_DUPLICATE_LIB_OK']='TRUE'
 
+import subprocess
 from dataclasses import dataclass
 from functools import partial
 import cv2
@@ -258,6 +259,10 @@ To increase resolution 2x on an existing output, make sure to supply proper sett
 
 If you already upscaled your gobiginit image, you can skip the resizing process. Provide the scaling factor used:
  {python_example} prd.py --gobig --gobiginit "some_directory/image.png" --gobiginit_scaled 2
+
+Alternative scaling method is to use ESRGAN (note: RealESRGAN must be installed and in your path):
+ {python_example} prd.py --esrgan
+More information on instlaling it is here: https://github.com/xinntao/Real-ESRGAN
 '''
 
 my_parser = argparse.ArgumentParser(
@@ -1715,11 +1720,14 @@ def do_run():
                                         if cl_args.esrgan:
                                             print('Resizing with ESRGAN')
                                             try:
+                                                gc.collect()
+                                                torch.cuda.empty_cache()
                                                 subprocess.run([
-                                                   'realesrgan-ncnn-vulkan.exe', '-i', f'{batchFolder}/{filename}', '-o', f'{batchFolder}/ESRGAN-{filename}'
+                                                   'realesrgan-ncnn-vulkan', '-i', f'{batchFolder}/{filename}', '-o', f'{batchFolder}/ESRGAN-{filename}'
                                                    ], stdout=subprocess.PIPE).stdout.decode('utf-8')
-                                            except:
+                                            except Exception as e:
                                                 print('ESRGAN resize failed. Make sure realesrgan-ncnn-vulkan is in your path (or in this directory)')
+                                                print(e)
 
                                     if args.animation_mode == "None" and letsgobig == False:
                                         print('Incrementing seed by one.')

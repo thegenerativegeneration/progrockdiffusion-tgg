@@ -2757,7 +2757,7 @@ else:
             filenum = int(file[(start + 1):end])
             filenums.append(filenum)
     if not filenums:
-        batchnum = 0
+        batchNum = 0
     else:
         batchNum = max(filenums) + 1
 

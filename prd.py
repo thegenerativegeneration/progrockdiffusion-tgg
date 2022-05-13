@@ -2756,10 +2756,10 @@ else:
             end = file.index('_',start+1)
             filenum = int(file[(start + 1):end])
             filenums.append(filenum)
-    try:
+    if not filenums:
+        batchnum = 0
+    else:
         batchNum = max(filenums) + 1
-    except:
-        batchNum = 0
 
 print(f'Starting Run: {batch_name}({batchNum}) at frame {start_frame}')
 

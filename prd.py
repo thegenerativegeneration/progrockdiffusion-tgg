@@ -2967,9 +2967,6 @@ try:
                 final_output_image = (f'{batchFolder}/{batch_name}_final_output_{current_time}.png')
             input_image = Image.open(progress_image).convert('RGBA')
             input_image.save(original_output_image)
-            print(f'cl_args.gobiginit_scaled is {cl_args.gobiginit_scaled}')
-            print(f'size of input_image is {input_image.size}')
-            print(f'side_x and side_y are {side_x} and {side_y}')
             if cl_args.gobiginit_scaled == False:
                 reside_x = side_x * gobig_scale
                 reside_y = side_y * gobig_scale
@@ -2984,6 +2981,8 @@ try:
             i = 1 # just to number the slices as they save
             betterslices = []
             for chunk in slices:
+                seed = seed + 1
+                args.seed = seed
                 # Reset underlying systems for another run
                 print(f'Rendering slice {i} of {slices_todo} ...')
                 model, diffusion = create_model_and_diffusion(**model_config)

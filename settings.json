@@ -82,5 +82,8 @@
     "sharpen_preset": "Off",
     "gobig_orientation": "vertical",
     "gobig_scale": 2,
-    "keep_unsharp": false
+    "keep_unsharp": false,
+    "symmetry_loss": false,
+    "symm_loss_scale":  161803,
+    "symm_switch": 45
 }

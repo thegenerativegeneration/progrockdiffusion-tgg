@@ -1,121 +1,121 @@
-a sword
+sword
 swords
-a crowd
+crowd
 crowds
-a riot
+riot
 rioters
-a fighter jet
+fighter jet
 fighter jets
-a spacecraft
-a fleet of spacecraft
-an army
+spacecraft
+fleet of spacecraft
+army
 armies
-a warrior
+warrior
 warriors
-a ninja
+ninja
 ninjas
-a samurai
-a group of samurai
-a mecha
+samurai
+group of samurai
+mecha
 mechs
-a monster
+monster
 monsters
-a witch
+witch
 witches
-a dragon
+dragon
 dragons
-a contraption
+contraption
 contraptions
-a airship
+airship
 airships
-a weapon
+weapon
 weapons
-a creature
+creature
 creatures
-an insect
+insect
 insects
 millions of insects
-an animal
+animal
 animals
-an alien
+alien
 aliens
-a moon
+moon
 moons
-a planet
+planet
 planets
-an explosion
+explosion
 explosions
-an eruption
-a river
+eruption
+river
 rivers
-a tree
+tree
 trees
-a castle
+castle
 castles
-a war
+war
 the war
 fruit
-the coast
-a book
+coast
+book
 books
-a toy
+toy
 toys
-an expert
+expert
 experts
-a horse
+horse
 horses
 society
-a city
+city
 cities
-some trouble
-a mountain
+trouble
+mountain
 mountains
-a bowl of oatmeal
-a brick
+bowl of oatmeal
+brick
 bricks
-a friend
+friend
 friends
 pets
 wine bottles
-a chamber
-a ballroom
+chamber
+ballroom
 worms
-a spring
+spring
 fire
 firefighters
 magic
-a man
-a woman
+man
+woman
 men
 women
 people
 the event
-a dungeon
+dungeon
 cheese
-a mind
+mind
 balls
-a tavern
+tavern
 shops
-a substance
+substance
 tomatoes
 competition
-a drink
-an idea
-the attack
-a fly
-a ring
-a drop
-a sofa
-a shelf
-a riddle
-a spy
-a stamp
-a scene
+drink
+idea
+attack
+fly
+ring
+drop
+sofa
+shelf
+riddle
+spy
+stamp
+scene
 bait
-the aftermath
-an umbrella
-the invention
-a group
+aftermath
+umbrella
+invention
+group
 birds
 desk
 study room

@@ -17,7 +17,8 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **tv_scale** | 0 | Controls the smoothness of the final output. tests have shown minimal impact when changing this.
 | **range_scale** | 150 | Controls how far out of range RGB values are allowed to be.
 | **sat_scale** | 0 | Controls how much saturation is allowed.
-| **cutn_batches** | 4 | Lowering this number can reduce how much memory is needed, however note that cutn itself is hard set at 16
+| **cutn_batches** | 8 | How many batches of cut_overview and cut_innercut to run per step.
+| **cutn_batches_final** | "None" | If set, the image will start with cutn_batches and progress to this number by the final step
 | **max_frames** | 10000 | No idea
 | **interp_spline** | "Linear" | Do not change, currently will not look good.
 | **init_image** | null | The starting image to use. Usuallly leave this blank and it will start with randomness
@@ -48,10 +49,10 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **RN50x4** | false | Enable or disable the VitB32 CLIP model. High memory, high accuracy
 | **RN50x16** | false | Enable or disable the VitB32 CLIP model. Very high memory, high accuracy
 | **RN50x64** | false | Enable or disable the VitB32 CLIP model. Extremely high memory, unknown accuracy
-| **cut_overview** | "[12]\*400+[4]\*600" | How many "big picture" passes to do. More towards the start, less later, is the general idea
-| **cut_innercut** | "[4]\*400+[12]\*600" | Conversely, how many detail passes to do. Fewer at the start, then get more detailed
+| **cut_overview** | "[5]\*400+[1]\*600" | How many "big picture" passes to do. More towards the start, less later, is the general idea
+| **cut_innercut** | "[1]\*400+[5]\*600" | Conversely, how many detail passes to do. Fewer at the start, then get more detailed
 | **cut_ic_pow** | 1 | A higher number can add more detail, but may create unwanted fine lines (value range: 0.5 to 100)
-| **cut_ic_pow_final** | "None" |If set, cut_ic_pow will be calculated each step, starting at cut_ic_pow and continuing toward cut_ic_pow_final by the end
+| **cut_ic_pow_final** | "None" |If set, image will start at cut_ic_pow and continue toward cut_ic_pow_final by the end
 | **cut_icgray_p** | "[0.2]\*400+[0]\*600" | Anyone? Beuller?
 | **gobig_orientation** | "vertical" | Which direction to do slices for gobig mode. Options are vertical or horizontal, but vertical is best in most cases
 | **animation_mode** | None | Animation mode. Options are "None", "2D", "Video Input" - CAPS MATTER

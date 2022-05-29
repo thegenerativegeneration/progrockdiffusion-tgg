@@ -17,6 +17,7 @@
     "range_scale": 150,
     "sat_scale": 0,
     "cutn_batches": 8,
+    "cutn_batches_final": "None",
     "max_frames": 10000,
     "interp_spline": "Linear",
     "init_image": null,

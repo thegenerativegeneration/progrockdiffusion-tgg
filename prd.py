@@ -140,6 +140,7 @@ sat_scale = 0
 n_batches = 1
 display_rate = 20
 cutn_batches = 4
+cutn_batches_final = None
 max_frames = 10000
 interp_spline = "Linear"
 init_image = None
@@ -383,6 +384,14 @@ my_parser.add_argument(
     'Resize your output with ESRGAN (realesrgan-ncnn-vulkan must be in your path).'
 )
 
+my_parser.add_argument(
+    '--skip_checks',
+    action='store_true',
+    required=False,
+    default=False,
+    help=
+    'Do not check values to make sure they are sensible.'
+)
 cl_args = my_parser.parse_args()
 
 
@@ -406,10 +415,10 @@ def clampval(minval, val, maxval):
     #Auto is handled later, so we just return it back as is
     elif val == "auto":
         return val
-    elif val < minval:
+    elif val < minval and not cl_args.skip_checks:
         val = minval
         return val
-    elif val > maxval:
+    elif val > maxval and not cl_args.skip_checks:
         val = maxval
         return val
     else:
@@ -445,6 +454,8 @@ for setting_arg in cl_args.settings:
                 display_rate = (settings_file['display_rate'])
             if is_json_key_present(settings_file, 'cutn_batches'):
                 cutn_batches = (settings_file['cutn_batches'])
+            if is_json_key_present(settings_file, 'cutn_batches_final'):
+                cutn_batches_final = (settings_file['cutn_batches_final'])
             if is_json_key_present(settings_file, 'max_frames'):
                 max_frames = (settings_file['max_frames'])
             if is_json_key_present(settings_file, 'interp_spline'):
@@ -902,10 +913,11 @@ def interp(t):
     return 3 * t**2 - 2 * t**3
 
 # return a number between two numbers in a given range
-def val_interpolate(x1: float, x2: float, y1: float, y2: float, x: float):
+def val_interpolate(x1, y1, x2, y2, x):
     """Perform linear interpolation for x between (x1,y1) and (x2,y2) """
-
-    return ((y2 - y1) * x + x2 * y1 - x1 * y2) / (x2 - x1)
+    d = [[x1, y1],[x2, y2]]
+    output = d[0][1] + (x - d[0][0]) * ((d[1][1] - d[0][1])/(d[1][0] - d[0][0]))
+    return(output)
 
 def perlin(width, height, scale=10, device=None):
     gx, gy = torch.randn(2, width + 1, height + 1, 1, 1, device=device)
@@ -1498,7 +1510,15 @@ def do_run():
                     x_in = out['pred_xstart'] * fac + x * (1 - fac)
                     x_in_grad = torch.zeros_like(x_in)
                 for model_stat in model_stats:
-                    for i in range(args.cutn_batches):
+                    temp_cutn_batches = args.cutn_batches
+                    if type(args.cutn_batches_final) is int:
+                        # interpolate value if we have a range of cutn_batches to do
+                        percent_done = (steps - cur_t) / steps
+                        tcb = val_interpolate(0.0, float(args.cutn_batches), 1.0, float(args.cutn_batches_final), float(percent_done))
+                        temp_cutn_batches = int(tcb)
+                    #print(f'debug: cutn_batches = {temp_cutn_batches}')
+
+                    for i in range(temp_cutn_batches):
                         t_int = int(
                             t.item()
                         ) + 1  #errors on last step without +1, need to find source
@@ -1513,7 +1533,8 @@ def do_run():
                         if type(args.cut_ic_pow_final) is int:
                             # interpolate value if we have a range of cut_ic_pow to do
                             percent_done = (steps - cur_t) / steps
-                            temp_ic_pow = val_interpolate(float(args.cut_ic_pow), 0.0, float(args.cut_ic_pow_final), 1.0, float(percent_done))
+                            temp_ic_pow = val_interpolate(0.0, float(args.cut_ic_pow), 1.0, float(args.cut_ic_pow_final), float(percent_done))
+                            #print(f'debug: cut_ic_pow = {temp_ic_pow}')
                         else:
                             temp_ic_pow = args.cut_ic_pow
                         cuts = MakeCutoutsDango(
@@ -1843,7 +1864,7 @@ def do_run():
                     #print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
-                    if (s % adjustment_interval == 0) and (fix_brightness_contrast == True):
+                    if (s % adjustment_interval == 0) and (s < (steps * .6)) and (fix_brightness_contrast == True):
                         if (high_brightness_adjust
                                 and s > high_brightness_start
                                 and brightness > high_brightness_threshold):
@@ -1922,6 +1943,7 @@ def save_settings():
         'sat_scale': sat_scale,
         # 'cutn': cutn,
         'cutn_batches': cutn_batches,
+        'cutn_batches_final': cutn_batches_final,
         'max_frames': max_frames,
         'interp_spline': interp_spline,
         # 'rotation_per_frame': rotation_per_frame,
@@ -2857,6 +2879,7 @@ args = {
     'range_scale': range_scale,
     'sat_scale': sat_scale,
     'cutn_batches': cutn_batches,
+    'cutn_batches_final': cutn_batches_final,
     'init_image': init_image,
     'init_scale': init_scale,
     'skip_steps': skip_steps,

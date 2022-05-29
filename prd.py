@@ -1959,7 +1959,7 @@ def save_settings():
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
-        'cut_ic_pow': cut_ic_pow_final,
+        'cut_ic_pow_final': cut_ic_pow_final,
         'cut_icgray_p': str(cut_icgray_p),
         'animation_mode': animation_mode,
         'key_frames': key_frames,

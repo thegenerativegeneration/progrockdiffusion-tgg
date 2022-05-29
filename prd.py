@@ -474,7 +474,7 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'clamp_grad'):
                 clamp_grad = (settings_file['clamp_grad'])
             if is_json_key_present(settings_file, 'clamp_max'):
-                clamp_max = clampval(0.001, (settings_file['clamp_max']), 0.1)
+                clamp_max = clampval(0.001, (settings_file['clamp_max']), 0.3)
             if is_json_key_present(settings_file, 'set_seed'):
                 set_seed = (settings_file['set_seed'])
             if is_json_key_present(settings_file, 'fuzzy_prompt'):

@@ -866,7 +866,6 @@ if init_image != None:
             temp = temp.resize(width_height, Image.Resampling.LANCZOS)
             temp.save('temp_init.png')
             init_image = 'temp_init.png'
-import torch
 
 # Decide if we're using CPU or GPU, with appropriate settings depending...
 if cl_args.cpu or not torch.cuda.is_available():
@@ -898,9 +897,6 @@ else:
 print('Using device:', device)
 
 #@title 2.2 Define necessary functions
-
-# https://gist.github.com/adefossez/0646dbe9ed4005480a2407c62aac8869
-
 
 def ease(num, t):
     start = num[0]
@@ -2559,30 +2555,9 @@ if animation_mode == "Video Input":
     ],
                    stdout=subprocess.PIPE).stdout.decode('utf-8')
 
-#@markdown ---
-
-#@markdown ####**2D Animation Settings:**
-#@markdown `zoom` is a multiplier of dimensions, 1 is no zoom.
-
-#key_frames = True #@param {type:"boolean"}
-#max_frames = 10000#@param {type:"number"}
 
 if animation_mode == "Video Input":
     max_frames = len(glob(f'{videoFramesFolder}/*.jpg'))
-
-#interp_spline = 'Linear' #Do not change, currently will not look good. param ['Linear','Quadratic','Cubic']{type:"string"}
-#angle = "0:(0)"#@param {type:"string"}
-#zoom = "0: (1), 10: (1.05)"#@param {type:"string"}
-#translation_x = "0: (0)"#@param {type:"string"}
-#translation_y = "0: (0)"#@param {type:"string"}
-
-#@markdown ---
-
-#@markdown ####**Coherency Settings:**
-#@markdown `frame_scale` tries to guide the new frame to looking like the old one. A good default is 1500.
-#frames_scale = 1500 #@param{type: 'integer'}
-#@markdown `frame_skip_steps` will blur the previous frame - higher values will flicker less but struggle to add enough new detail to zoom into.
-#frames_skip_steps = '60%' #@param ['40%', '50%', '60%', '70%', '80%'] {type: 'string'}
 
 
 def parse_key_frames(string, prompt_parser=None):

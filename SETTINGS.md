@@ -41,8 +41,8 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **diffusion_steps** | 1000 | Note: The code seems to calculate this no matter what you put in, so might as well leave it
 | **sampling_mode** | "plms"  | Options are "plms" or "ddim" - plms can reach a nice image in fewer steps, but may not look as good as ddim.
 | **ViTB32** | true | Enable or disable the VitB32 CLIP model. Low memory, low accuracy
-| **ViTB16** | true | Enable or disable the VitB16 CLIP model. Med memory, high accuracy
-| **ViTL14** | false | Enable or disable the ViTL14 CLIP model. Very high memory, very high accuracy
+| **ViTB16** | false | Enable or disable the VitB16 CLIP model. Med memory, high accuracy
+| **ViTL14** | true | Enable or disable the ViTL14 CLIP model. Very high memory, very high accuracy
 | **ViTL14_336** | false | Enable or disable the ViTL14_336 CLIP model. Extremely high memory, very high accuracy
 | **RN101** | false | Enable or disable the VitB32 CLIP model. Low memory, low accuracy
 | **RN50** | true | Enable or disable the VitB32 CLIP model. Med memory, med accuracy

@@ -1,0 +1,36 @@
+
+{
+  "_HELP": "By default the settings will run one after the other, interpolating their parameters, between the start and the end.",
+  "_HELP Multidimensionnal 2.1": "¨With the -x option, the different settings will be a dimension of a multidimensional grid.",
+  "_HELP Multidimensionnal 2.2": "be careful not to add too many dimensions, beyond two, the number of settings generated can be gigantic.",
+
+  "settings": 
+  [
+    {
+      "interpolation_steps": 4,
+      "start": 
+      {
+        "steps": 10,
+        "skip_augs": false
+      },
+      "end": 
+      {
+        "steps": 30,
+        "skip_augs": true
+      }
+    },
+    {
+      "interpolation_steps": 4,
+      "start": 
+      {
+        "tv_scale": 1000,
+        "clip_guidance_scale": 500
+      },
+      "end": 
+      {
+        "tv_scale": 2000,
+        "clip_guidance_scale": 2000
+      }
+    }
+  ]
+}

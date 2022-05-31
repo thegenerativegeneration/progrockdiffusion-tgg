@@ -22,7 +22,9 @@
     "interp_spline": "Linear",
     "init_image": null,
     "init_scale": 1000,
-    "skip_steps": 0,
+    // Set skip_steps to -1 if you want to use skip step ratio insteed of skep_steps absolute value
+    "skip_steps": -1, 
+    "skip_steps_ratio": 0.3,
     "frames_scale": 1500,
     "frames_skip_steps": "60%",
     "perlin_init": false,

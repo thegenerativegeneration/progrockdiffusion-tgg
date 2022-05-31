@@ -146,6 +146,7 @@ interp_spline = "Linear"
 init_image = None
 init_scale = 1000
 skip_steps = 0
+skip_steps_ratio = 0.3
 frames_scale = 1500
 frames_skip_steps = "60%"
 perlin_init = False
@@ -466,6 +467,8 @@ for setting_arg in cl_args.settings:
                 init_scale = (settings_file['init_scale'])
             if is_json_key_present(settings_file, 'skip_steps'):
                 skip_steps = (settings_file['skip_steps'])
+            if is_json_key_present(settings_file, 'skip_steps_ratio'):
+                skip_steps_ratio = (settings_file['skip_steps_ratio'])
             if is_json_key_present(settings_file, 'stop_early'):
                 stop_early = (settings_file['stop_early'])
             if is_json_key_present(settings_file, 'frames_scale'):
@@ -708,6 +711,9 @@ if cl_args.geninit:
         )
 else:
     geninit = False
+
+if skip_steps == -1:
+    skip_steps = int(steps * skip_steps_ratio)
 
 if cl_args.useinit:
     if skip_steps == 0:

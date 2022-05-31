@@ -27,11 +27,31 @@ except FileNotFoundError:
     exit()
 
 
+def ConvertBooleanToFloat(value):
+    if value:
+        return 1.0
+    else:
+        return 0.0
+
+
 # Lerp function
 def lerp(a, b, t):
+    booltype = False
+    if type(a) == bool and type(b) == bool:
+        a = ConvertBooleanToFloat(a)
+        b = ConvertBooleanToFloat(b)
+        booltype = True
+
     result = (1. - t) * a + t * b
+
     if type(a) == int:
         result = int(round(result))
+    elif booltype:
+        if round(result) > 0.5:
+            return True
+        else:
+            return False
+
     return result
 
 
@@ -51,7 +71,7 @@ def LerpDictionary(dict1, dict2, t):
 
 def ExecuteProgrockdiffusionWith(temporarySetting):
     # write a temporary setting file to override the base setting
-    print("\n\nCurrent Setting: \n" + temporarySetting.__str__() + "\n\n")
+    print("\nCurrent Setting:" + temporarySetting.__str__() + "\n\n")
     with open('tmp.json', 'w', encoding='utf-8') as f:
         json.dump(temporarySetting, f, ensure_ascii=False, indent=4)
     f.close()
@@ -72,14 +92,13 @@ def N_DimensionalSetting():
                 LerpDictionary(data['settings'][dimension]['start'], data['settings'][dimension]['end'], current_step))
 
     meshgridSettings = np.array(np.meshgrid(*jsonData)).T.reshape(-1, len(data["settings"]))
-    print("\n\n\nSettings to be performed:\n" + meshgridSettings.__str__())
+    print("\n\Settings to be performed:" + meshgridSettings.__str__())
 
     for i in range(0, len(meshgridSettings)):
         setting = meshgridSettings[i][0]
         for j in range(1, len(meshgridSettings[i])):
             setting = {**setting, **meshgridSettings[i][j]}
         ExecuteProgrockdiffusionWith(setting)
-    quit()
 
 
 def SequenceSettings():
@@ -99,7 +118,6 @@ def SequenceSettings():
                 current_value = lerp(start, end, current_step)
                 interpolatedSetting[key] = current_value
             ExecuteProgrockdiffusionWith(interpolatedSetting)
-    quit()
 
 
 if args.xDimension:

@@ -431,8 +431,8 @@ for setting_arg in cl_args.settings:
         with open(setting_arg, 'r', encoding="utf-8") as json_file:
             print(f'Parsing {setting_arg}')
             settings_file = json.load(json_file)
-            # If any of these around in this settings file they'll be applied, overwriting any previous value.
-            # Some are passed by clampval first to make sure they are within bounds (or randomized if desired)
+            # If any of these are in this settings file they'll be applied, overwriting any previous value.
+            # Some are passed through clampval first to make sure they are within bounds (or randomized if desired)
             if is_json_key_present(settings_file, 'batch_name'):
                 batch_name = (settings_file['batch_name'])
             if is_json_key_present(settings_file, 'text_prompts'):

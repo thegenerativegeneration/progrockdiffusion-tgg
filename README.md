@@ -1,6 +1,8 @@
 # progrockdiffusion
 A command line version of [Disco Diffusion](https://github.com/alembics/disco-diffusion).
 
+Please consider supporting my time and effort in maintaining and improving this program on my [Patreon](https://www.patreon.com/jasonmhough?fan_landing=true). Thanks!
+
 # Quick note on updating:
 A new version was released today, April 5 2022. If you are trying to update you'll need to install a few additional items:
 ```

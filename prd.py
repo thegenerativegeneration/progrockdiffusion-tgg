@@ -86,6 +86,7 @@ if sys.platform == 'win32':
 #Uncomment the below line if you're getting an error about OMP: Error #15.
 #os.environ['KMP_DUPLICATE_LIB_OK']='TRUE'
 
+import subprocess
 from dataclasses import dataclass
 from functools import partial
 import cv2
@@ -139,6 +140,7 @@ sat_scale = 0
 n_batches = 1
 display_rate = 20
 cutn_batches = 4
+cutn_batches_final = None
 max_frames = 10000
 interp_spline = "Linear"
 init_image = None
@@ -214,6 +216,9 @@ keep_unsharp = False  #@param{type: 'boolean'}
 animation_mode = "None" # "Video Input", "2D"
 gobig_orientation = "vertical"
 gobig_scale = 2
+symmetry_loss = False
+symm_loss_scale =  161803
+symm_switch = 45
 
 # Command Line parse
 import argparse
@@ -259,6 +264,10 @@ To increase resolution 2x on an existing output, make sure to supply proper sett
 
 If you already upscaled your gobiginit image, you can skip the resizing process. Provide the scaling factor used:
  {python_example} prd.py --gobig --gobiginit "some_directory/image.png" --gobiginit_scaled 2
+
+Alternative scaling method is to use ESRGAN (note: RealESRGAN must be installed and in your path):
+ {python_example} prd.py --esrgan
+More information on instlaling it is here: https://github.com/xinntao/Real-ESRGAN
 '''
 
 my_parser = argparse.ArgumentParser(
@@ -368,6 +377,22 @@ my_parser.add_argument(
     'If you already scaled your gobiginit image, add this option along with the multiplier used (default 2)'
 )
 
+my_parser.add_argument(
+    '--esrgan',
+    action='store_true',
+    required=False,
+    help=
+    'Resize your output with ESRGAN (realesrgan-ncnn-vulkan must be in your path).'
+)
+
+my_parser.add_argument(
+    '--skip_checks',
+    action='store_true',
+    required=False,
+    default=False,
+    help=
+    'Do not check values to make sure they are sensible.'
+)
 cl_args = my_parser.parse_args()
 
 
@@ -391,10 +416,10 @@ def clampval(minval, val, maxval):
     #Auto is handled later, so we just return it back as is
     elif val == "auto":
         return val
-    elif val < minval:
+    elif val < minval and not cl_args.skip_checks:
         val = minval
         return val
-    elif val > maxval:
+    elif val > maxval and not cl_args.skip_checks:
         val = maxval
         return val
     else:
@@ -407,8 +432,8 @@ for setting_arg in cl_args.settings:
         with open(setting_arg, 'r', encoding="utf-8") as json_file:
             print(f'Parsing {setting_arg}')
             settings_file = json.load(json_file)
-            # If any of these around in this settings file they'll be applied, overwriting any previous value.
-            # Some are passed by clampval first to make sure they are within bounds (or randomized if desired)
+            # If any of these are in this settings file they'll be applied, overwriting any previous value.
+            # Some are passed through clampval first to make sure they are within bounds (or randomized if desired)
             if is_json_key_present(settings_file, 'batch_name'):
                 batch_name = (settings_file['batch_name'])
             if is_json_key_present(settings_file, 'text_prompts'):
@@ -430,6 +455,8 @@ for setting_arg in cl_args.settings:
                 display_rate = (settings_file['display_rate'])
             if is_json_key_present(settings_file, 'cutn_batches'):
                 cutn_batches = (settings_file['cutn_batches'])
+            if is_json_key_present(settings_file, 'cutn_batches_final'):
+                cutn_batches_final = (settings_file['cutn_batches_final'])
             if is_json_key_present(settings_file, 'max_frames'):
                 max_frames = (settings_file['max_frames'])
             if is_json_key_present(settings_file, 'interp_spline'):
@@ -461,7 +488,7 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'clamp_grad'):
                 clamp_grad = (settings_file['clamp_grad'])
             if is_json_key_present(settings_file, 'clamp_max'):
-                clamp_max = clampval(0.001, (settings_file['clamp_max']), 0.1)
+                clamp_max = clampval(0.001, (settings_file['clamp_max']), 0.3)
             if is_json_key_present(settings_file, 'set_seed'):
                 set_seed = (settings_file['set_seed'])
             if is_json_key_present(settings_file, 'fuzzy_prompt'):
@@ -596,6 +623,12 @@ for setting_arg in cl_args.settings:
                 gobig_orientation = (settings_file['gobig_orientation'])
             if is_json_key_present(settings_file, 'gobig_scale'):
                 gobig_scale = int(settings_file['gobig_scale'])
+            if is_json_key_present(settings_file, 'symmetry_loss'):
+                symmetry_loss = (settings_file['symmetry_loss'])
+            if is_json_key_present(settings_file, 'symm_loss_scale'):
+                symm_loss_scale = (settings_file['symm_loss_scale'])
+            if is_json_key_present(settings_file, 'symm_switch'):
+                symm_switch = int(clampval(1, (settings_file['symm_switch']), steps))
 
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +
@@ -606,6 +639,10 @@ for setting_arg in cl_args.settings:
 width_height = [
     width_height[0] * width_height_scale, width_height[1] * width_height_scale
 ]
+
+if symmetry_loss:
+    symm_switch = 100.*(1. - (symm_switch/steps))
+    print(f"Symmetry ends at {100-symm_switch}%")
 
 #Now override some depending on command line and maybe a special case
 if cl_args.output:
@@ -835,7 +872,6 @@ if init_image != None:
             temp = temp.resize(width_height, Image.Resampling.LANCZOS)
             temp.save('temp_init.png')
             init_image = 'temp_init.png'
-import torch
 
 # Decide if we're using CPU or GPU, with appropriate settings depending...
 if cl_args.cpu or not torch.cuda.is_available():
@@ -868,9 +904,6 @@ print('Using device:', device)
 
 #@title 2.2 Define necessary functions
 
-# https://gist.github.com/adefossez/0646dbe9ed4005480a2407c62aac8869
-
-
 def ease(num, t):
     start = num[0]
     end = num[1]
@@ -882,10 +915,11 @@ def interp(t):
     return 3 * t**2 - 2 * t**3
 
 # return a number between two numbers in a given range
-def val_interpolate(x1: float, x2: float, y1: float, y2: float, x: float):
+def val_interpolate(x1, y1, x2, y2, x):
     """Perform linear interpolation for x between (x1,y1) and (x2,y2) """
-
-    return ((y2 - y1) * x + x2 * y1 - x1 * y2) / (x2 - x1)
+    d = [[x1, y1],[x2, y2]]
+    output = d[0][1] + (x - d[0][0]) * ((d[1][1] - d[0][1])/(d[1][0] - d[0][0]))
+    return(output)
 
 def perlin(width, height, scale=10, device=None):
     gx, gy = torch.randn(2, width + 1, height + 1, 1, 1, device=device)
@@ -1213,6 +1247,12 @@ def tv_loss(input):
 def range_loss(input):
     return (input - input.clamp(-1, 1)).pow(2).mean([1, 2, 3])
 
+def symm_loss(im,lpm):
+    h = int(im.shape[3]/2)
+    h1,h2 = im[:,:,:,:h],im[:,:,:,h:]
+    h2 = TF.hflip(h2)
+    return lpm(h1,h2)
+
 
 stop_on_next_loop = False  # Make sure GPU memory doesn't get corrupted from cancelling the run mid-way through, allow a full frame to complete
 
@@ -1472,7 +1512,15 @@ def do_run():
                     x_in = out['pred_xstart'] * fac + x * (1 - fac)
                     x_in_grad = torch.zeros_like(x_in)
                 for model_stat in model_stats:
-                    for i in range(args.cutn_batches):
+                    temp_cutn_batches = args.cutn_batches
+                    if type(args.cutn_batches_final) is int:
+                        # interpolate value if we have a range of cutn_batches to do
+                        percent_done = (steps - cur_t) / steps
+                        tcb = val_interpolate(0.0, float(args.cutn_batches), 1.0, float(args.cutn_batches_final), float(percent_done))
+                        temp_cutn_batches = int(tcb)
+                    #print(f'debug: cutn_batches = {temp_cutn_batches}')
+
+                    for i in range(temp_cutn_batches):
                         t_int = int(
                             t.item()
                         ) + 1  #errors on last step without +1, need to find source
@@ -1487,7 +1535,8 @@ def do_run():
                         if type(args.cut_ic_pow_final) is int:
                             # interpolate value if we have a range of cut_ic_pow to do
                             percent_done = (steps - cur_t) / steps
-                            temp_ic_pow = val_interpolate(float(args.cut_ic_pow), 0.0, float(args.cut_ic_pow_final), 1.0, float(percent_done))
+                            temp_ic_pow = val_interpolate(0.0, float(args.cut_ic_pow), 1.0, float(args.cut_ic_pow_final), float(percent_done))
+                            #print(f'debug: cut_ic_pow = {temp_ic_pow}')
                         else:
                             temp_ic_pow = args.cut_ic_pow
                         cuts = MakeCutoutsDango(
@@ -1524,6 +1573,9 @@ def do_run():
                 if init is not None and args.init_scale:
                     init_losses = lpips_model(x_in, init)
                     loss = loss + init_losses.sum() * args.init_scale
+                if args.symmetry_loss and np.array(t.cpu())[0] > 10*args.symm_switch:
+                    sloss = symm_loss(x_in,lpips_model)
+                    loss = loss + sloss.sum() * args.sloss_scale
                 x_in_grad += torch.autograd.grad(loss, x_in)[0]
                 if torch.isnan(x_in_grad).any() == False:
                     grad = -torch.autograd.grad(x_in, x, x_in_grad)[0]
@@ -1710,6 +1762,18 @@ def do_run():
                                     else:
                                         image.save(f'{batchFolder}/{filename}',
                                                    pnginfo=metadata)
+                                        if cl_args.esrgan:
+                                            print('Resizing with ESRGAN')
+                                            try:
+                                                gc.collect()
+                                                torch.cuda.empty_cache()
+                                                subprocess.run([
+                                                   'realesrgan-ncnn-vulkan', '-i', f'{batchFolder}/{filename}', '-o', f'{batchFolder}/ESRGAN-{filename}'
+                                                   ], stdout=subprocess.PIPE).stdout.decode('utf-8')
+                                            except Exception as e:
+                                                print('ESRGAN resize failed. Make sure realesrgan-ncnn-vulkan is in your path (or in this directory)')
+                                                print(e)
+
                                     if args.animation_mode == "None" and letsgobig == False:
                                         print('Incrementing seed by one.')
                                         seed = seed + 1
@@ -1802,7 +1866,7 @@ def do_run():
                     #print(f" Contrast at {s}: {contrast}")
                     #print(f" Brightness at {s}: {brightness}")
 
-                    if (s % adjustment_interval == 0) and (fix_brightness_contrast == True):
+                    if (s % adjustment_interval == 0) and (s < (steps * .6)) and (fix_brightness_contrast == True):
                         if (high_brightness_adjust
                                 and s > high_brightness_start
                                 and brightness > high_brightness_threshold):
@@ -1881,6 +1945,7 @@ def save_settings():
         'sat_scale': sat_scale,
         # 'cutn': cutn,
         'cutn_batches': cutn_batches,
+        'cutn_batches_final': cutn_batches_final,
         'max_frames': max_frames,
         'interp_spline': interp_spline,
         # 'rotation_per_frame': rotation_per_frame,
@@ -1918,7 +1983,7 @@ def save_settings():
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': cut_ic_pow,
-        'cut_ic_pow': cut_ic_pow_final,
+        'cut_ic_pow_final': cut_ic_pow_final,
         'cut_icgray_p': str(cut_icgray_p),
         'animation_mode': animation_mode,
         'key_frames': key_frames,
@@ -1951,6 +2016,9 @@ def save_settings():
         'keep_unsharp': keep_unsharp,
         'gobig_orientation': gobig_orientation,
         'gobig_scale': gobig_scale,
+        'symmetry_loss':symmetry_loss,
+        'sloss_scale':symm_loss_scale,
+        'symm_switch':symm_switch,
     }
     with open(f"{batchFolder}/{batch_name}_{batchNum}_settings.json",
               "w+",
@@ -2161,14 +2229,17 @@ check_model_SHA = False  #@param{type:"boolean"}
 def download_models(diffusion_model,use_secondary_model,fallback=False):
   model_256_downloaded = False
   model_512_downloaded = False
+  model_256_comics_downloaded = False
   model_secondary_downloaded = False
 
   model_256_SHA = '983e3de6f95c88c81b2ca7ebb2c217933be1973b1ff058776b970f901584613a'
   model_512_SHA = '9c111ab89e214862b76e1fa6a1b3f1d329b1a88281885943d2cdbe357ad57648'
+  model_256_comics_SHA = 'f587fd6d2edb093701931e5083a13ab6b76b3f457b60efd1aa873d60ee3d6388'
   model_secondary_SHA = '983e3de6f95c88c81b2ca7ebb2c217933be1973b1ff058776b970f901584613a'
 
   model_256_link = 'https://openaipublic.blob.core.windows.net/diffusion/jul-2021/256x256_diffusion_uncond.pt'
   model_512_link = 'http://batbot.tv/ai/models/guided-diffusion/512x512_diffusion_uncond_finetune_008100.pt'
+  model_256_comics_link = 'https://github.com/Sxela/DiscoDiffusion-Warp/releases/download/v0.1.0/256x256_openai_comics_faces_by_alex_spirin_084000.pt'
   model_secondary_link = 'https://the-eye.eu/public/AI/models/v-diffusion/secondary_model_imagenet_2.pth'
 
   model_256_link_fb = 'https://www.dropbox.com/s/9tqnqo930mpnpcn/256x256_diffusion_uncond.pt'
@@ -2177,6 +2248,7 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
 
   model_256_path = f'{model_path}/256x256_diffusion_uncond.pt'
   model_512_path = f'{model_path}/512x512_diffusion_uncond_finetune_008100.pt'
+  model_256_comics_path = f'{model_path}/256x256_openai_comics_faces_by_alex_spirin_084000.pt'
   model_secondary_path = f'{model_path}/secondary_model_imagenet_2.pth'
 
   if fallback:
@@ -2244,6 +2316,26 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
       print('512 Model downloading. This may take a while...')
       urllib.request.urlretrieve(model_512_link, model_512_path)
       model_512_downloaded = True
+  elif diffusion_model == '256x256_openai_comics_faces_by_alex_spirin_084000':
+      if os.path.exists(model_256_comics_path) and check_model_SHA:
+        print('Checking 256 Comics Diffusion File')
+        with open(model_256_comics_path,"rb") as f:
+            bytes = f.read()
+            hash = hashlib.sha256(bytes).hexdigest();
+        if hash == model_256_comics_SHA:
+          print('256 Comics Model SHA matches')
+          model_256_comics_downloaded = True
+        else:
+          print("256 Comics SHA doesn't match, redownloading...")
+          urllib.request.urlretrieve(model_256_comics_link, model_256_comics_path)
+          model_256_comics_downloaded = True
+      elif os.path.exists(model_256_comics_path) and not check_model_SHA or model_256_comics_downloaded == True:
+        print('256 Comics Model already downloaded, check check_model_SHA if the file is corrupt')
+      else:
+        print('256 Comics Model downloading. This may take a while...')
+        urllib.request.urlretrieve(model_256_comics_link, model_256_comics_path)
+        model_256_comics_downloaded = True
+
   # Download the secondary diffusion model v2
   if use_secondary_model == True:
     if os.path.exists(model_secondary_path) and check_model_SHA:
@@ -2315,6 +2407,23 @@ elif diffusion_model == '256x256_diffusion_uncond':
         'use_fp16': fp16_mode,
         'use_scale_shift_norm': True,
     })
+elif diffusion_model == '256x256_openai_comics_faces_by_alex_spirin_084000':
+    model_config.update({
+          'attention_resolutions': '16',
+          'class_cond': False,
+          'diffusion_steps': 1000,
+          'rescale_timesteps': True,
+          'timestep_respacing': 'ddim100',
+          'image_size': 256,
+          'learn_sigma': True,
+          'noise_schedule': 'linear',
+          'num_channels': 128,
+          'num_heads': 1,
+          'num_res_blocks': 2,
+          'use_checkpoint': use_checkpoint,
+          'use_fp16': True,
+          'use_scale_shift_norm': False,
+      })
 
 model_default = model_config['image_size']
 
@@ -2452,30 +2561,9 @@ if animation_mode == "Video Input":
     ],
                    stdout=subprocess.PIPE).stdout.decode('utf-8')
 
-#@markdown ---
-
-#@markdown ####**2D Animation Settings:**
-#@markdown `zoom` is a multiplier of dimensions, 1 is no zoom.
-
-#key_frames = True #@param {type:"boolean"}
-#max_frames = 10000#@param {type:"number"}
 
 if animation_mode == "Video Input":
     max_frames = len(glob(f'{videoFramesFolder}/*.jpg'))
-
-#interp_spline = 'Linear' #Do not change, currently will not look good. param ['Linear','Quadratic','Cubic']{type:"string"}
-#angle = "0:(0)"#@param {type:"string"}
-#zoom = "0: (1), 10: (1.05)"#@param {type:"string"}
-#translation_x = "0: (0)"#@param {type:"string"}
-#translation_y = "0: (0)"#@param {type:"string"}
-
-#@markdown ---
-
-#@markdown ####**Coherency Settings:**
-#@markdown `frame_scale` tries to guide the new frame to looking like the old one. A good default is 1500.
-#frames_scale = 1500 #@param{type: 'integer'}
-#@markdown `frame_skip_steps` will blur the previous frame - higher values will flicker less but struggle to add enough new detail to zoom into.
-#frames_skip_steps = '60%' #@param ['40%', '50%', '60%', '70%', '80%'] {type: 'string'}
 
 
 def parse_key_frames(string, prompt_parser=None):
@@ -2737,7 +2825,10 @@ else:
             end = file.index('_',start+1)
             filenum = int(file[(start + 1):end])
             filenums.append(filenum)
-    batchNum = max(filenums) + 1
+    if not filenums:
+        batchNum = 0
+    else:
+        batchNum = max(filenums) + 1
 
 print(f'Starting Run: {batch_name}({batchNum}) at frame {start_frame}')
 
@@ -2769,6 +2860,7 @@ args = {
     'range_scale': range_scale,
     'sat_scale': sat_scale,
     'cutn_batches': cutn_batches,
+    'cutn_batches_final': cutn_batches_final,
     'init_image': init_image,
     'init_scale': init_scale,
     'skip_steps': skip_steps,
@@ -2819,6 +2911,9 @@ args = {
     'fuzzy_prompt': fuzzy_prompt,
     'rand_mag': rand_mag,
     'stop_early': stop_early,
+    'symmetry_loss': symmetry_loss,
+    'sloss_scale':symm_loss_scale,
+    'symm_switch':symm_switch,
 }
 
 args = SimpleNamespace(**args)
@@ -2945,9 +3040,6 @@ try:
                 final_output_image = (f'{batchFolder}/{batch_name}_final_output_{current_time}.png')
             input_image = Image.open(progress_image).convert('RGBA')
             input_image.save(original_output_image)
-            print(f'cl_args.gobiginit_scaled is {cl_args.gobiginit_scaled}')
-            print(f'size of input_image is {input_image.size}')
-            print(f'side_x and side_y are {side_x} and {side_y}')
             if cl_args.gobiginit_scaled == False:
                 reside_x = side_x * gobig_scale
                 reside_y = side_y * gobig_scale
@@ -2962,6 +3054,8 @@ try:
             i = 1 # just to number the slices as they save
             betterslices = []
             for chunk in slices:
+                seed = seed + 1
+                args.seed = seed
                 # Reset underlying systems for another run
                 print(f'Rendering slice {i} of {slices_todo} ...')
                 model, diffusion = create_model_and_diffusion(**model_config)
@@ -2978,6 +3072,7 @@ try:
                 #no do the next run
                 chunk.save(slice_image)
                 args.init_image = slice_image
+                args.symmetry_loss = False
                 args.skip_steps = int(steps * .6)
                 args.side_x, args.side_y = chunk.size
                 side_x, side_y = chunk.size

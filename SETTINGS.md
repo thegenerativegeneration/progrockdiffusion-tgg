@@ -17,7 +17,8 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **tv_scale** | 0 | Controls the smoothness of the final output. tests have shown minimal impact when changing this.
 | **range_scale** | 150 | Controls how far out of range RGB values are allowed to be.
 | **sat_scale** | 0 | Controls how much saturation is allowed.
-| **cutn_batches** | 4 | Lowering this number can reduce how much memory is needed, however note that cutn itself is hard set at 16
+| **cutn_batches** | 8 | How many batches of cut_overview and cut_innercut to run per step.
+| **cutn_batches_final** | "None" | If set, the image will start with cutn_batches and progress to this number by the final step
 | **max_frames** | 10000 | No idea
 | **interp_spline** | "Linear" | Do not change, currently will not look good.
 | **init_image** | null | The starting image to use. Usuallly leave this blank and it will start with randomness
@@ -35,23 +36,23 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **fuzzy_prompt** | false | Controls whether to add multiple noisy prompts to the prompt losses
 | **rand_mag** | 0.05 | Controls how far it can stray from your prompt - not used unless either fuzzy_prompt is true, or an init image is used
 | **eta** | "auto" | Has to do with how much the generator can stray from your prompt. Affected by steps, so "auto" will calculate a good value.
-| **diffusion_model** | "512x512_diffusion_uncond_finetune_008100", or "256x256_diffusion_uncond"
+| **diffusion_model** | "512x512_diffusion_uncond_finetune_008100", "256x256_openai_comics_faces_by_alex_spirin_084000", or "256x256_diffusion_uncond"
 | **use_secondary_model** | true | Reduces memory and improves speed, potentially at a loss of quality
 | **diffusion_steps** | 1000 | Note: The code seems to calculate this no matter what you put in, so might as well leave it
 | **sampling_mode** | "plms"  | Options are "plms" or "ddim" - plms can reach a nice image in fewer steps, but may not look as good as ddim.
 | **ViTB32** | true | Enable or disable the VitB32 CLIP model. Low memory, low accuracy
-| **ViTB16** | true | Enable or disable the VitB16 CLIP model. Med memory, high accuracy
-| **ViTL14** | false | Enable or disable the ViTL14 CLIP model. Very high memory, very high accuracy
+| **ViTB16** | false | Enable or disable the VitB16 CLIP model. Med memory, high accuracy
+| **ViTL14** | true | Enable or disable the ViTL14 CLIP model. Very high memory, very high accuracy
 | **ViTL14_336** | false | Enable or disable the ViTL14_336 CLIP model. Extremely high memory, very high accuracy
 | **RN101** | false | Enable or disable the VitB32 CLIP model. Low memory, low accuracy
 | **RN50** | true | Enable or disable the VitB32 CLIP model. Med memory, med accuracy
 | **RN50x4** | false | Enable or disable the VitB32 CLIP model. High memory, high accuracy
 | **RN50x16** | false | Enable or disable the VitB32 CLIP model. Very high memory, high accuracy
 | **RN50x64** | false | Enable or disable the VitB32 CLIP model. Extremely high memory, unknown accuracy
-| **cut_overview** | "[12]\*400+[4]\*600" | How many "big picture" passes to do. More towards the start, less later, is the general idea
-| **cut_innercut** | "[4]\*400+[12]\*600" | Conversely, how many detail passes to do. Fewer at the start, then get more detailed
+| **cut_overview** | "[5]\*400+[1]\*600" | How many "big picture" passes to do. More towards the start, less later, is the general idea
+| **cut_innercut** | "[1]\*400+[5]\*600" | Conversely, how many detail passes to do. Fewer at the start, then get more detailed
 | **cut_ic_pow** | 1 | A higher number can add more detail, but may create unwanted fine lines (value range: 0.5 to 100)
-| **cut_ic_pow_final** | "None" |If set, cut_ic_pow will be calculated each step, starting at cut_ic_pow and continuing toward cut_ic_pow_final by the end
+| **cut_ic_pow_final** | "None" |If set, image will start at cut_ic_pow and continue toward cut_ic_pow_final by the end
 | **cut_icgray_p** | "[0.2]\*400+[0]\*600" | Anyone? Beuller?
 | **gobig_orientation** | "vertical" | Which direction to do slices for gobig mode. Options are vertical or horizontal, but vertical is best in most cases
 | **animation_mode** | None | Animation mode. Options are "None", "2D", "Video Input" - CAPS MATTER
@@ -63,6 +64,9 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **video_init_path** | "/content/training.mp4"| Animation stuff...
 | **extract_nth_frame** | 2 | Animation stuff...
 | **intermediate_saves**   | 0  | Save in progress. A value of `2` will save a copy at 33% and 66%. 0 will save none. A value of `[5, 9, 34, 45]` will save at steps 5, 9, 34, and 45. (Make sure to include the brackets)
+| **symmetry_loss** | False | Set this to "True" to enable left/right symmetry during the render
+| **symm_loss_scale** |  161803 | helps control how closely each side should match during symmetry (?)
+| **symm_switch** | 45 | what step to stop doing symmetry mode
 
 ## Randomizable settings
 The following settings can be set to "random" (with the quotes), which will tell the code to pick a random value within their expected boundaries:

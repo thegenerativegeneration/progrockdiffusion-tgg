@@ -112,7 +112,7 @@ Brom
 Bruce Pennington
 Bunny Yeager
 Cam Sykes
-Camille Corot
+Jean-Baptiste-Camille Corot
 Camille Pissarro
 Camille-Pierre Pambu Bodo
 Canaletto
@@ -411,6 +411,7 @@ Jean Cunningham
 Jean Delville
 Jean Giraud
 Jean Metzinger
+Jean-François Millet
 Jean-Honoré Fragonard
 Jean-Michel Basquiat
 Jeff Easley
@@ -784,6 +785,7 @@ Terry Redlin
 The author of the Voynich Manuscript
 Thomas Cole
 Thomas Crane
+Thomas Eakins
 Thomas Fogarty
 Thomas Häfner
 Thomas Kinkade

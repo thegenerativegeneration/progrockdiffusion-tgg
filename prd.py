@@ -2788,6 +2788,17 @@ if geninit:
     ]  # Save a checkpoint at 20% for use as a later init image
 intermediates_in_subfolder = True  #@param{type: 'boolean'}
 
+if type(intermediate_saves) is list:
+    new_intermediate_saves = []
+    for isave in intermediate_saves:
+        if type(isave) is float:
+            isave = int(steps * isave)
+            new_intermediate_saves.append(isave)
+    if len(new_intermediate_saves) > 0:
+        intermediate_saves = new_intermediate_saves
+    print(f'Note: will save at {intermediate_saves} steps')
+
+
 if type(intermediate_saves) is not list:
     if intermediate_saves:
         steps_per_checkpoint = math.floor(

@@ -51,6 +51,8 @@ Stripped down for basic Python use by Jason Hough
 import os
 from os import path
 import shutil
+
+from attr import has
 root_path = os.getcwd()
 
 
@@ -1255,6 +1257,7 @@ def symm_loss(im,lpm):
 
 
 stop_on_next_loop = False  # Make sure GPU memory doesn't get corrupted from cancelling the run mid-way through, allow a full frame to complete
+scoreprompt = True
 
 def do_run():
     seed = args.seed
@@ -1378,6 +1381,7 @@ def do_run():
                 print(f' Prompt for step {s}: {sample_prompt}')
 
             model_stats = []
+            clipcount = 0
             for clip_model in clip_models:
                 cutn = 16
                 model_stat = {
@@ -1390,9 +1394,10 @@ def do_run():
 
                 for prompt in sample_prompt:
                     txt, weight = parse_prompt(prompt, {'s': s})
+                    #print(f'weight is type {type(weight)}{weight} at step {s}')
                     txt = clip_model.encode_text(
                         clip.tokenize(prompt).to(device)).float()
-
+                    
                     if args.fuzzy_prompt:
                         for i in range(25):
                             model_stat["target_embeds"].append(
@@ -1402,6 +1407,18 @@ def do_run():
                     else:
                         model_stat["target_embeds"].append(txt)
                         model_stat["weights"].append(weight)
+
+                    # Generate a confidence score from what CLIP found
+                    # by taking the top 10 values and subtracting the bottom 10
+                    # global scoreprompt
+                    # if scoreprompt == True:
+                    #     hasconfidence, conindex  = txt.topk(10)
+                    #     hasconfidence = hasconfidence.sum()
+                    #     lackconfidence, lackconindex  = txt.topk(10,largest=False)
+                    #     lackconfidence = lackconfidence.sum()
+                    #     confidence = 100.00 - (hasconfidence - lackconfidence)
+                    #     print(f'[{clip_modelname[clipcount]:<10}] scored this prompt: {confidence:.2f}')
+                clipcount += 1
 
                 if image_prompt:
                     model_stat["make_cutouts"] = MakeCutouts(
@@ -1438,6 +1455,8 @@ def do_run():
                     raise RuntimeError('The weights must not sum to 0.')
                 model_stat["weights"] /= model_stat["weights"].sum().abs()
                 model_stats.append(model_stat)
+            
+            scoreprompt = False
 
         initial_weights = False
 
@@ -1588,7 +1607,10 @@ def do_run():
                 timestep = (1000 - t.item()) / 1000
                 clamp_max = 0
 
-                #save_tensor_as_image(grad, "grad.png")
+                # save_tensor_as_image(grad, "grad.png")
+                #image_data = grad.data.cpu().numpy()
+                #plt.imshow(image_data, cmap = "gray")
+                #plt.savefig("test.png", bbox_inches = "tight", pad_inches = 0.0)
 
                 if isinstance(args.clamp_max, list):
                     clamp_max = ease(args.clamp_max, timestep)
@@ -2435,39 +2457,49 @@ if use_secondary_model:
     secondary_model.eval().requires_grad_(False).to(device)
 
 clip_models = []
+clip_modelname = []
 if ViTB32 is True:
+    clip_modelname.append('ViTB32')
     clip_models.append(
         clip.load('ViT-B/32',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 if ViTB16 is True:
+    clip_modelname.append('ViTB16')
     clip_models.append(
         clip.load('ViT-B/16',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 if ViTL14 is True:
+    clip_modelname.append('ViTL14')
     clip_models.append(
         clip.load('ViT-L/14',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 if ViTL14_336 is True:
+    clip_modelname.append('ViTL14_336')
     clip_models.append(
         clip.load('ViT-L/14@336px',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 if RN50 is True:
+    clip_modelname.append('RN50')
     clip_models.append(
         clip.load('RN50',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 if RN50x4 is True:
+    clip_modelname.append('RN50x4')
     clip_models.append(
         clip.load('RN50x4',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 if RN50x16 is True:
+    clip_modelname.append('RN50x16')
     clip_models.append(
         clip.load('RN50x16',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 if RN50x64 is True:
+    clip_modelname.append('RN50x64')
     clip_models.append(
         clip.load('RN50x64',
                   jit=False)[0].eval().requires_grad_(False).to(device))
 if RN101 is True:
+    clip_modelname.append('RN101')
     clip_models.append(
         clip.load('RN101',
                   jit=False)[0].eval().requires_grad_(False).to(device))

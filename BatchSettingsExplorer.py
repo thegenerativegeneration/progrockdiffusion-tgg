@@ -9,7 +9,7 @@ parser.add_argument(
     '--settings',
     required=False,
     default=['blending.json'],
-    help='A settings JSON file to use, best to put in quotes. Multiples are allowed and layered in order.'
+    help='A settings JSON file to use, best to put in quotes.'
 )
 
 parser.add_argument("-x", '--xDimension', action='store_true',

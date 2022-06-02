@@ -712,8 +712,11 @@ if cl_args.geninit:
 else:
     geninit = False
 
-if skip_steps == -1:
-    skip_steps = int(steps * skip_steps_ratio)
+if skip_steps == 0 and init_image is not None:
+    if 0 < skip_steps_ratio <= 1:
+        skip_steps = (int(steps * skip_steps_ratio))
+    else:
+        skip_steps = (int(steps * 0.33))
 
 if cl_args.useinit:
     if skip_steps == 0:

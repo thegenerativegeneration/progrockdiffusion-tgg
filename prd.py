@@ -1540,7 +1540,6 @@ def do_run():
                         percent_done = (steps - cur_t) / steps
                         tcb = val_interpolate(0.0, float(args.cutn_batches), 1.0, float(args.cutn_batches_final), float(percent_done))
                         temp_cutn_batches = int(tcb)
-                    #print(f'debug: cutn_batches = {temp_cutn_batches}')
 
                     for i in range(temp_cutn_batches):
                         t_int = int(
@@ -1558,7 +1557,6 @@ def do_run():
                             # interpolate value if we have a range of cut_ic_pow to do
                             percent_done = (steps - cur_t) / steps
                             temp_ic_pow = val_interpolate(0.0, float(args.cut_ic_pow), 1.0, float(args.cut_ic_pow_final), float(percent_done))
-                            #print(f'debug: cut_ic_pow = {temp_ic_pow}')
                         else:
                             temp_ic_pow = args.cut_ic_pow
                         cuts = MakeCutoutsDango(
@@ -1769,9 +1767,9 @@ def do_run():
                                         else:
                                             image.save(
                                                 f'{batchFolder}/{filename}')
-                                    if geninit is True:
-                                        image.save('geninit.png')
-                                        raise KeyboardInterrupt
+                                        if geninit is True:
+                                            image.save('geninit.png')
+                                            raise KeyboardInterrupt
 
                                 if cur_t == -1:
                                     if frame_num == 0:
@@ -2780,25 +2778,26 @@ else:
  Partial Saves, Diffusion Sharpening, Advanced Settings, Cutn Scheduling
 """
 
-#@markdown ####**Saving:**
-#intermediate_saves = 0#@param{type: 'raw'}
-if geninit:
-    intermediate_saves = [
-        (steps * geninitamount)
-    ]  # Save a checkpoint at 20% for use as a later init image
 intermediates_in_subfolder = True  #@param{type: 'boolean'}
 
+# Save a checkpoint at 20% for use as a later init image
+if geninit:
+    intermediate_saves = [(steps * geninitamount)]
+
+# Save partial run at specific steps, or at percentage of steps
 if type(intermediate_saves) is list:
     new_intermediate_saves = []
     for isave in intermediate_saves:
         if type(isave) is float:
             isave = int(steps * isave)
             new_intermediate_saves.append(isave)
+        elif type(isave) is int:
+            new_intermediate_saves.append(isave)
     if len(new_intermediate_saves) > 0:
         intermediate_saves = new_intermediate_saves
     print(f'Note: will save at {intermediate_saves} steps')
 
-
+# Save partial run at certain divisions of total steps
 if type(intermediate_saves) is not list:
     if intermediate_saves:
         steps_per_checkpoint = math.floor(
@@ -2814,9 +2813,7 @@ if intermediate_saves and intermediates_in_subfolder is True:
     partialFolder = f'{batchFolder}/partials'
     createPath(partialFolder)
 
-
 batch_size = 1
-
 
 def move_files(start_num, end_num, old_folder, new_folder):
     for i in range(start_num, end_num):

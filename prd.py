@@ -428,6 +428,16 @@ def clampval(minval, val, maxval):
     else:
         return val
 
+print('\nPROG ROCK DIFFUSION')
+print('-------------------')
+
+#rolling a d20 to see if I should pester you about supporting PRD.
+# Apologies if this offends you. At least it's only on a critical miss, right? 
+d20 = random.randint(1,20) 
+if d20 == 1:
+    print('Please consider supporting my Patreon. Thanks! https://is.gd/rVX6IH')
+else:
+    print('')
 
 # Load the JSON config files
 for setting_arg in cl_args.settings:
@@ -639,6 +649,8 @@ for setting_arg in cl_args.settings:
         print(e)
         quit()
 
+print('')
+
 width_height = [
     width_height[0] * width_height_scale, width_height[1] * width_height_scale
 ]
@@ -847,7 +859,7 @@ for k, v in text_prompts.items():
             v = {**v, kk: vv}
     if prompt_change == True:
         text_prompts = {**text_prompts, k: v}
-        print(f'Prompt with randomizers: {text_prompts}')
+        print(f'Prompt with randomizers: {text_prompts}\n')
 
 # INIT IMAGE RANDOMIZER
 # If the setting for init_image is a word between two underscores, we'll pull a random image from that directory,
@@ -1000,10 +1012,9 @@ def regen_perlin():
 
 
 def fetch(url_or_path):
-    print(f'Fetching {str(url_or_path)}')
-    print(f'This might take a while... please wait.')
     if str(url_or_path).startswith('http://') or str(url_or_path).startswith(
             'https://'):
+        print(f'Fetching {str(url_or_path)}. \nThis might take a while... please wait.')
         r = requests.get(url_or_path)
         r.raise_for_status()
         fd = io.BytesIO()
@@ -1364,7 +1375,7 @@ def do_run():
         if (type(frame_prompt) is list):
             frame_prompt = {"0": frame_prompt}
 
-        print(f'Frame Prompt: {frame_prompt}')
+        #print(f'Frame Prompt: {frame_prompt}')
 
         prev_sample_prompt = []
         model_stats = []
@@ -1384,7 +1395,7 @@ def do_run():
             #sample_prompt += additional_prompts
 
             if (print_sample_prompt):
-                print(f' Prompt for step {s}: {sample_prompt}')
+                print(f'\nPrompt for step {s}: {sample_prompt}')
 
             model_stats = []
             clipcount = 0
@@ -1466,7 +1477,7 @@ def do_run():
 
         initial_weights = False
 
-        print(f'skip steps: {skip_steps}')
+        print(f'Skipping {skip_steps} steps')
 
         if (skip_steps > 0):
             for i in range(skip_steps, 0, -1):
@@ -1806,8 +1817,8 @@ def do_run():
                                                 print(e)
 
                                     if (args.animation_mode == "None") and (letsgobig == False) and ((i + 1) < n_batches):
-                                        progressBar.write('Image finished. Incrementing seed by one for next image.')
                                         seed = seed + 1
+                                        progressBar.write(f'Image finished. Using seed {seed} for next image.')
                                         np.random.seed(seed)
                                         random.seed(seed)
                                         torch.manual_seed(seed)
@@ -2233,7 +2244,7 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
           print('First URL Failed using FallBack')
           download_models(diffusion_model,use_secondary_model,True)
     elif os.path.exists(model_256_path) and not check_model_SHA or model_256_downloaded == True:
-      print('256 Model already downloaded, check check_model_SHA if the file is corrupt')
+      pass
     else:
       #wget(model_256_link, model_path)
       print('256 Model downloading. This may take a while...')
@@ -2267,7 +2278,7 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
           print('First URL failed, using backup')
           download_models(diffusion_model,use_secondary_model,True)
     elif os.path.exists(model_512_path) and not check_model_SHA or model_512_downloaded == True:
-      print('512 Model already downloaded, check check_model_SHA if the file is corrupt')
+      pass
     else:
       #wget(model_512_link, model_path)
       print('512 Model downloading. This may take a while...')
@@ -2287,7 +2298,7 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
           urllib.request.urlretrieve(model_256_comics_link, model_256_comics_path)
           model_256_comics_downloaded = True
       elif os.path.exists(model_256_comics_path) and not check_model_SHA or model_256_comics_downloaded == True:
-        print('256 Comics Model already downloaded, check check_model_SHA if the file is corrupt')
+        pass
       else:
         print('256 Comics Model downloading. This may take a while...')
         urllib.request.urlretrieve(model_256_comics_link, model_256_comics_path)
@@ -2314,7 +2325,7 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
           print('First URL failed, using backup')
           download_models(diffusion_model,use_secondary_model,True)
     elif os.path.exists(model_secondary_path) and not check_model_SHA or model_secondary_downloaded == True:
-      print('Secondary Model already downloaded, check check_model_SHA if the file is corrupt')
+      pass
     else:
       #wget(model_secondary_link, model_path)
       print('Secondary Model downloading. This may take a while...')
@@ -2807,7 +2818,7 @@ else:
     else:
         batchNum = max(filenums) + 1
 
-print(f'Starting Run: {batch_name}({batchNum}) at frame {start_frame}')
+print(f'\nStarting Run: {batch_name}({batchNum}) at frame {start_frame}')
 
 if set_seed == 'random_seed':
     random.seed()
@@ -2897,7 +2908,7 @@ args = SimpleNamespace(**args)
 
 if cl_args.gobiginit == None:
     model, diffusion = create_model_and_diffusion(**model_config)
-    print(f'Prepping model: {model_path}/{diffusion_model}.pt')
+    #print(f'Prepping model: {model_path}/{diffusion_model}.pt')
     model.load_state_dict(
         torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
     model.requires_grad_(False).eval().to(device)
@@ -3099,7 +3110,7 @@ try:
 except KeyboardInterrupt:
     pass
 finally:
-    print('\n\nImage(s) finished.')
+    print('\n\nAll image(s) finished.')
     gc.collect()
     torch.cuda.empty_cache()
 

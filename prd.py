@@ -50,6 +50,7 @@ Stripped down for basic Python use by Jason Hough
 
 import os
 from os import path
+from pickle import FALSE
 import shutil
 
 from attr import has
@@ -1261,6 +1262,8 @@ def symm_loss(im,lpm):
 
 stop_on_next_loop = False  # Make sure GPU memory doesn't get corrupted from cancelling the run mid-way through, allow a full frame to complete
 scoreprompt = True
+actual_total_steps = steps
+actual_run_steps = 0
 
 def do_run():
     seed = args.seed
@@ -1273,10 +1276,10 @@ def do_run():
 
         # Print Frame progress if animation mode is on
         #print(f'Animation mode is {animation_mode}') #debug
-        if args.animation_mode != "None":
-            batchBar = tqdm(range(args.max_frames), desc="Frames")
-            batchBar.n = frame_num
-            batchBar.refresh()
+        # if args.animation_mode != "None":
+        #     batchBar = tqdm(range(args.max_frames), desc="Frames")
+        #     batchBar.n = frame_num
+        #     batchBar.refresh()
 
         # Inits if not video frames
         if args.animation_mode != "Video Input":
@@ -1631,17 +1634,21 @@ def do_run():
             sample_fn = diffusion.plms_sample_loop_progressive
 
         image_display = Output()
+        progressBar = tqdm(range(steps))
         for i in range(args.n_batches):
-            if args.animation_mode == 'None':
+            #if args.animation_mode == 'None':
                 #display.clear_output(wait=True)
-                batchBar = tqdm(range(args.n_batches), desc="Batches")
-                batchBar.n = i
-                batchBar.refresh()
-            print('')
+                #batchBar = tqdm(range(args.n_batches), desc="Batches")
+                #batchBar.n = i
+                #batchBar.refresh()
+            #print('')
             #display.display(image_display)
             gc.collect()
             torch.cuda.empty_cache()
             cur_t = diffusion.num_timesteps - skip_steps - 1
+            global actual_total_steps
+            global actual_run_steps
+            actual_run_steps = skip_steps
             total_steps = cur_t
 
             if perlin_init:
@@ -1655,7 +1662,7 @@ def do_run():
                         clip_denoised=clip_denoised,
                         model_kwargs={},
                         cond_fn=cond_fn,
-                        progress=True,
+                        progress=False,
                         skip_timesteps=_skip,
                         init_image=init,
                         randomize_class=randomize_class,
@@ -1668,7 +1675,7 @@ def do_run():
                         clip_denoised=clip_denoised,
                         model_kwargs={},
                         cond_fn=cond_fn,
-                        progress=True,
+                        progress=False,
                         skip_timesteps=_skip,
                         init_image=init,
                         randomize_class=randomize_class,
@@ -1677,30 +1684,32 @@ def do_run():
 
                 return samples
 
-            # with run_display:
-            # display.clear_output(wait=True)
             imgToSharpen = None
             adjustment_prompt = []
+            progressBar.set_description(f'Image {i + 1} of {n_batches}: ')
             while cur_t >= stop_early:
                 samples = do_sample_fn(init, steps - cur_t - 1)
                 for j, sample in enumerate(samples):
+                    actual_run_steps += 1
+                    #print(f'debug: {actual_run_steps} out of {actual_total_steps}')
+                    progressBar.n = actual_run_steps
+                    progressBar.refresh()
                     cur_t -= 1
                     if (cur_t < stop_early):
                         cur_t = -1
 
                     intermediateStep = False
                     if args.steps_per_checkpoint is not None:
-                        if j % steps_per_checkpoint == 0 and j > 0:
+                        if actual_run_steps % steps_per_checkpoint == 0 and actual_run_steps > 0:
                             intermediateStep = True
-                    elif j in args.intermediate_saves:
+                    elif actual_run_steps in args.intermediate_saves:
                         intermediateStep = True
                     with image_display:
-                        if j % args.display_rate == 0 or cur_t == -1 or intermediateStep == True:
+                        if actual_run_steps % args.display_rate == 0 or cur_t == -1 or intermediateStep == True:
                             for k, image in enumerate(sample['pred_xstart']):
-                                # tqdm.write(f'Batch {i}, step {j}, output {k}:')
                                 current_time = datetime.now().strftime(
                                     '%y%m%d-%H%M%S_%f')
-                                percent = math.ceil(j / total_steps * 100)
+                                percent = math.ceil(actual_run_steps / actual_total_steps * 100)
                                 if args.n_batches > 0:
                                     #if intermediates are saved to the subfolder, don't append a step or percentage to the name
                                     if cur_t == -1 and args.intermediates_in_subfolder is True:
@@ -1712,7 +1721,7 @@ def do_run():
                                             filename = f'{args.batch_name}({args.batchNum})_{i:04}-{percent:02}%.png'
                                         # Or else, iIf we're working with specific steps, append those
                                         else:
-                                            filename = f'{args.batch_name}({args.batchNum})_{i:04}-{j:03}.png'
+                                            filename = f'{args.batch_name}({args.batchNum})_{i:04}-{actual_run_steps:03}.png'
                                 image = TF.to_pil_image(
                                     image.add(1).div(2).clamp(0, 1))
                                 #add some key metadata to the PNG if the commandline allows it
@@ -1744,15 +1753,14 @@ def do_run():
                                     metadata.add_text("cut_ic_pow",
                                                       str(cut_ic_pow))
 
-                                if j % args.display_rate == 0 or cur_t == -1:
+                                if actual_run_steps % args.display_rate == 0 or cur_t == -1:
                                     if cl_args.cuda != '0':
                                         image.save(f"progress{cl_args.cuda}.png") # note the GPU being used if it's not 0, so it won't overwrite other GPU's work
                                     else:
                                         image.save('progress.png')
-                                    display.clear_output(wait=True)
-                                    #display.display(display.Image('progress.png'))
+                                    #display.clear_output(wait=True)
                                 if args.steps_per_checkpoint is not None:
-                                    if j % args.steps_per_checkpoint == 0 and j > 0:
+                                    if actual_run_steps % args.steps_per_checkpoint == 0 and actual_run_steps > 0:
                                         if args.intermediates_in_subfolder is True:
                                             image.save(
                                                 f'{partialFolder}/{filename}')
@@ -1760,7 +1768,7 @@ def do_run():
                                             image.save(
                                                 f'{batchFolder}/{filename}')
                                 else:
-                                    if j in args.intermediate_saves:
+                                    if actual_run_steps in args.intermediate_saves:
                                         if args.intermediates_in_subfolder is True:
                                             image.save(
                                                 f'{partialFolder}/{filename}')
@@ -1797,83 +1805,18 @@ def do_run():
                                                 print('ESRGAN resize failed. Make sure realesrgan-ncnn-vulkan is in your path (or in this directory)')
                                                 print(e)
 
-                                    if args.animation_mode == "None" and letsgobig == False:
-                                        print('Incrementing seed by one.')
+                                    if (args.animation_mode == "None") and (letsgobig == False) and ((i + 1) < n_batches):
+                                        progressBar.write('Image finished. Incrementing seed by one for next image.')
                                         seed = seed + 1
                                         np.random.seed(seed)
                                         random.seed(seed)
                                         torch.manual_seed(seed)
-                                    # if frame_num != args.max_frames-1:
-                                    #   display.clear_output()
 
-                    dynamic_adjustment = False
-                    adjustment_prompt = []
-                    magnitude_multiplier = 1
                     image = sample['pred_xstart'][0]
                     image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
 
                     if (gui):
                         prdgui.update_image(image)
-                        #prdgui.update_text(str(cur_t))
-
-                    if (dynamic_adjustment):
-                        stat = ImageStat.Stat(image)
-
-                        print(f" stddev: {stat.stddev}")
-                        print(f"var:    {stat.var}")
-                        print(f"mean:   {stat.mean}")
-                        # Inaccurate way of calculating brightness.  Adjust later.
-                        brightness = (stat.mean[0] + stat.mean[1] +
-                                      stat.mean[2]) / 3
-
-                        #print(f' brightness: {brightness}')
-                        overexposure_threshold = 140
-                        overexposure_adjustment_magnitude = 10
-                        overexposure_adjustment_max = 4
-
-                        underexposure_threshold = 80
-                        underexposure_adjustment_magnitude = 10
-                        underexposure_adjustment_max = 4
-
-                        #Track the total magnitude of the adjustments so it can be added to the main prompt
-                        total_adjustment_magnitude = 0
-                        adjustment_prompt = []
-
-                        if (brightness > overexposure_threshold):
-                            overexposure = brightness - overexposure_threshold
-                            magnitude = overexposure / (
-                                (255 - overexposure_threshold) /
-                                overexposure_adjustment_magnitude)
-                            if (magnitude > overexposure_adjustment_max):
-                                magnitude = overexposure_adjustment_max
-                            adjustment_prompt += [
-                                #f'overexposed:-{magnitude}',
-                                #f'grainy:-{magnitude}', f'low contrast:{magnitude}'
-                                f'overexposed, grainy, high contrast, brightness:-{magnitude}',
-                                f'dark color scheme:{magnitude}',
-                                #f'low contrast:{magnitude}',
-                                #f'white, yellow, pink, magenta:-{magnitude}'
-                            ]
-                            total_adjustment_magnitude += abs(magnitude)
-
-                        if (brightness < underexposure_threshold):
-                            underexposure = underexposure_threshold - brightness
-                            magnitude = underexposure / underexposure_threshold * underexposure_adjustment_magnitude
-                            if (magnitude > underexposure_adjustment_max):
-                                magnitude = underexposure_adjustment_max
-                            adjustment_prompt += [
-                                f'bright color scheme, midday, blinding light:{magnitude}'
-                            ]
-                            total_adjustment_magnitude += abs(magnitude)
-
-                        if (len(adjustment_prompt) > 0):
-                            print(
-                                f" {j}: {stat.mean}/{brightness}: {adjustment_prompt}"
-                            )
-                        magnitude_multiplier += total_adjustment_magnitude
-
-                        #if (j < 40 and len(adjustment_prompt) > 0):
-                        #    magnitude_multiplier *= (j + 1) / 40
 
                     do_weights(steps - cur_t - 1)
 
@@ -1886,16 +1829,12 @@ def do_run():
 
                     s = steps - cur_t
 
-                    #print(f" Contrast at {s}: {contrast}")
-                    #print(f" Brightness at {s}: {brightness}")
-
+                    # BRIGHTNESS and CONTRAST automatic correction
                     if (s % adjustment_interval == 0) and (s < (steps * .6)) and (fix_brightness_contrast == True):
                         if (high_brightness_adjust
                                 and s > high_brightness_start
                                 and brightness > high_brightness_threshold):
-                            print(
-                                " Brightness over threshold. Compensating! Total steps counter might change, it's okay..."
-                            )
+                            progressBar.write(f"High brightness corrected at step {s}")
                             filter = ImageEnhance.Brightness(image)
                             image = filter.enhance(
                                 high_brightness_adjust_amount)
@@ -1905,9 +1844,7 @@ def do_run():
 
                         if (low_brightness_adjust and s > low_brightness_start
                                 and brightness < low_brightness_threshold):
-                            print(
-                                " Brightness below threshold. Compensating! Total steps counter might change, it's okay..."
-                            )
+                            progressBar.write(f"Low brightness corrected at step {s}")
                             filter = ImageEnhance.Brightness(image)
                             image = filter.enhance(
                                 low_brightness_adjust_amount)
@@ -1917,9 +1854,7 @@ def do_run():
 
                         if (high_contrast_adjust and s > high_contrast_start
                                 and contrast > high_contrast_threshold):
-                            print(
-                                " Contrast over threshold. Compensating! Total steps counter might change, it's okay..."
-                            )
+                            progressBar.write(f"High contrast corrected at step {s}")
                             filter = ImageEnhance.Contrast(image)
                             image = filter.enhance(high_contrast_adjust_amount)
                             init = TF.to_tensor(image).to(device).unsqueeze(
@@ -1928,9 +1863,7 @@ def do_run():
 
                         if (low_contrast_adjust and s > low_contrast_start
                                 and contrast < low_contrast_threshold):
-                            print(
-                                " Contrast below threshold. Compensating! Total steps counter might change, it's okay..."
-                            )
+                            progressBar.write(f"Low contrast corrected at step {s}")
                             filter = ImageEnhance.Contrast(image)
                             image = filter.enhance(low_contrast_adjust_amount)
                             init = TF.to_tensor(image).to(device).unsqueeze(
@@ -1947,7 +1880,8 @@ def do_run():
                     #do_superres(imgToSharpen, f'{batchFolder}/{filename}')
                     display.clear_output()
 
-            plt.plot(np.array(loss_values), 'r')
+            #plt.plot(np.array(loss_values), 'r')
+        progressBar.close()
 
 
 def save_settings():
@@ -3165,13 +3099,11 @@ try:
 except KeyboardInterrupt:
     pass
 finally:
-    print('Seed used:', seed)
+    print('\n\nImage(s) finished.')
     gc.collect()
     torch.cuda.empty_cache()
-"""# 5. Create the video"""
 
 # @title ### **Create video**
-#@markdown Video file will save in the same folder as your images.
 
 skip_video_for_run_all = True  #@param {type: 'boolean'}
 
@@ -3192,7 +3124,6 @@ if skip_video_for_run_all == False:
     view_video_in_cell = False  #@param {type: 'boolean'}
 
     frames = []
-    # tqdm.write('Generating video...')
 
     if last_frame == 'final_frame':
         last_frame = len(glob(batchFolder + f"/{folder}({run})_*.png"))

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """ProgRock Diffusion
 
-Command line version of Disco Diffusion (v5 Alpha)
+Command line version of Disco Diffusion (v5 Alpha) adapted for command line by Jason Hough (and friends!)
+--
 
 Original file is located at
     https://colab.research.google.com/drive/1QGCyDlYneIvv1zFXngfOCCoSUKC6j1ZP
@@ -19,9 +20,11 @@ The latest zoom, pan, rotation, and keyframes features were taken from Chigozie 
 Advanced DangoCutn Cutout method is also from Dango223.
 
 Somnai (https://twitter.com/Somnai_dreams) added Diffusion Animation techniques, QoL improvements and various implementations of tech and techniques, mostly listed in the changelog below.
---
-Stripped down for basic Python use by Jason Hough
---
+
+Pixel art models by u/Kaliyuga_ai
+
+Comic faces model by alex_spirin
+
 """
 
 # @title Licensed under the MIT License
@@ -1764,7 +1767,7 @@ def do_run():
                                     metadata.add_text("cut_ic_pow",
                                                       str(cut_ic_pow))
 
-                                if actual_run_steps % args.display_rate == 0 or cur_t == -1:
+                                if actual_run_steps % args.display_rate == 0 or actual_run_steps == 1 or cur_t == -1:
                                     if cl_args.cuda != '0':
                                         image.save(f"progress{cl_args.cuda}.png") # note the GPU being used if it's not 0, so it won't overwrite other GPU's work
                                     else:
@@ -2194,20 +2197,35 @@ other_sampling_mode = 'bicubic'
 #@markdown If you're having issues with model downloads, check this to compare SHA's:
 check_model_SHA = False  #@param{type:"boolean"}
 
+if diffusion_model == 'random':
+    the_models = ['256x256_diffusion_uncond',
+        '512x512_diffusion_uncond_finetune_008100',
+        '256x256_openai_comics_faces_by_alex_spirin_084000',
+        'pixel_art_diffusion_hard_256',
+        'pixel_art_diffusion_soft_256']
+    diffusion_model = random.choice(the_models)
+    print(f'Random model selected is {diffusion_model}')
+
 def download_models(diffusion_model,use_secondary_model,fallback=False):
   model_256_downloaded = False
   model_512_downloaded = False
   model_256_comics_downloaded = False
+  model_pixel_art_diffusion_hard_256_downloaded = False
+  model_pixel_art_diffusion_soft_256_downloaded  = False
   model_secondary_downloaded = False
 
   model_256_SHA = '983e3de6f95c88c81b2ca7ebb2c217933be1973b1ff058776b970f901584613a'
   model_512_SHA = '9c111ab89e214862b76e1fa6a1b3f1d329b1a88281885943d2cdbe357ad57648'
   model_256_comics_SHA = 'f587fd6d2edb093701931e5083a13ab6b76b3f457b60efd1aa873d60ee3d6388'
+  model_pixel_art_diffusion_hard_256_SHA = 'be4a9de943ec06eef32c65a1008c60ad017723a4d35dc13169c66bb322234161'
+  model_pixel_art_diffusion_soft_256_SHA = 'd321590e46b679bf6def1f1914b47c89e762c76f19ab3e3392c8ca07c791039c'
   model_secondary_SHA = '983e3de6f95c88c81b2ca7ebb2c217933be1973b1ff058776b970f901584613a'
 
   model_256_link = 'https://openaipublic.blob.core.windows.net/diffusion/jul-2021/256x256_diffusion_uncond.pt'
   model_512_link = 'http://batbot.tv/ai/models/guided-diffusion/512x512_diffusion_uncond_finetune_008100.pt'
   model_256_comics_link = 'https://github.com/Sxela/DiscoDiffusion-Warp/releases/download/v0.1.0/256x256_openai_comics_faces_by_alex_spirin_084000.pt'
+  model_pixel_art_diffusion_hard_256_link = 'https://huggingface.co/KaliYuga/pixel_art_diffusion_hard_256/resolve/main/pixel_art_diffusion_hard_256.pt'
+  model_pixel_art_diffusion_soft_256_link = 'https://huggingface.co/KaliYuga/pixel_art_diffusion_soft_256/resolve/main/pixel_art_diffusion_soft_256.pt'
   model_secondary_link = 'https://the-eye.eu/public/AI/models/v-diffusion/secondary_model_imagenet_2.pth'
 
   model_256_link_fb = 'https://www.dropbox.com/s/9tqnqo930mpnpcn/256x256_diffusion_uncond.pt'
@@ -2217,6 +2235,8 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
   model_256_path = f'{model_path}/256x256_diffusion_uncond.pt'
   model_512_path = f'{model_path}/512x512_diffusion_uncond_finetune_008100.pt'
   model_256_comics_path = f'{model_path}/256x256_openai_comics_faces_by_alex_spirin_084000.pt'
+  model_pixel_art_diffusion_hard_256_path = f'{model_path}/pixel_art_diffusion_hard_256.pt'
+  model_pixel_art_diffusion_soft_256_path = f'{model_path}/pixel_art_diffusion_soft_256.pt'
   model_secondary_path = f'{model_path}/secondary_model_imagenet_2.pth'
 
   if fallback:
@@ -2224,6 +2244,7 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
     model_512_link = model_512_link_fb
     model_secondary_link = model_secondary_link_fb
   # Download the diffusion model
+
   if diffusion_model == '256x256_diffusion_uncond':
     if os.path.exists(model_256_path) and check_model_SHA:
       print('Checking 256 Diffusion File')
@@ -2303,6 +2324,46 @@ def download_models(diffusion_model,use_secondary_model,fallback=False):
         print('256 Comics Model downloading. This may take a while...')
         urllib.request.urlretrieve(model_256_comics_link, model_256_comics_path)
         model_256_comics_downloaded = True
+
+  elif diffusion_model == 'pixel_art_diffusion_hard_256':
+      if os.path.exists(model_pixel_art_diffusion_hard_256_path) and check_model_SHA:
+        print('Checking 256 Pixel Art Hard Model File')
+        with open(model_pixel_art_diffusion_hard_256_path,"rb") as f:
+            bytes = f.read()
+            hash = hashlib.sha256(bytes).hexdigest();
+        if hash == model_pixel_art_diffusion_hard_256_SHA:
+          print('256 Pixel Art Hard Model SHA matches')
+          model_pixel_art_diffusion_hard_256_downloaded  = True
+        else:
+          print("256 Pixel Art Hard Model doesn't match, redownloading...")
+          urllib.request.urlretrieve(model_pixel_art_diffusion_hard_256_link, model_pixel_art_diffusion_hard_256_path)
+          model_pixel_art_diffusion_hard_256_downloaded = True
+      elif os.path.exists(model_pixel_art_diffusion_hard_256_path) and not check_model_SHA or model_pixel_art_diffusion_hard_256_downloaded == True:
+        pass
+      else:
+        print('256 Pixel Art Hard Model  downloading. This may take a while...')
+        urllib.request.urlretrieve(model_pixel_art_diffusion_hard_256_link, model_pixel_art_diffusion_hard_256_path)
+        model_pixel_art_diffusion_hard_256_downloaded = True
+
+  elif diffusion_model == 'pixel_art_diffusion_soft_256':
+      if os.path.exists(model_pixel_art_diffusion_soft_256_path) and check_model_SHA:
+        print('Checking 256 Pixel Art soft Model File')
+        with open(model_pixel_art_diffusion_soft_256_path,"rb") as f:
+            bytes = f.read()
+            hash = hashlib.sha256(bytes).hexdigest();
+        if hash == model_pixel_art_diffusion_soft_256_SHA:
+          print('256 Pixel Art soft Model SHA matches')
+          model_pixel_art_diffusion_soft_256_downloaded  = True
+        else:
+          print("256 Pixel Art soft Model doesn't match, redownloading...")
+          urllib.request.urlretrieve(model_pixel_art_diffusion_soft_256_link, model_pixel_art_diffusion_soft_256_path)
+          model_pixel_art_diffusion_soft_256_downloaded = True
+      elif os.path.exists(model_pixel_art_diffusion_soft_256_path) and not check_model_SHA or model_pixel_art_diffusion_soft_256_downloaded == True:
+        pass
+      else:
+        print('256 Pixel Art soft Model  downloading. This may take a while...')
+        urllib.request.urlretrieve(model_pixel_art_diffusion_soft_256_link, model_pixel_art_diffusion_soft_256_path)
+        model_pixel_art_diffusion_soft_256_downloaded = True
 
   # Download the secondary diffusion model v2
   if use_secondary_model == True:
@@ -2392,6 +2453,41 @@ elif diffusion_model == '256x256_openai_comics_faces_by_alex_spirin_084000':
           'use_fp16': True,
           'use_scale_shift_norm': False,
       })
+elif diffusion_model == 'pixel_art_diffusion_hard_256':
+    model_config.update({
+          'attention_resolutions': '16',
+          'class_cond': False,
+          'diffusion_steps': 1000,
+          'rescale_timesteps': True,
+          'timestep_respacing': 'ddim100',
+          'image_size': 256,
+          'learn_sigma': True,
+          'noise_schedule': 'linear',
+          'num_channels': 128,
+          'num_heads': 1,
+          'num_res_blocks': 2,
+          'use_checkpoint': use_checkpoint,
+          'use_fp16': True,
+          'use_scale_shift_norm': False,
+      })
+elif diffusion_model == 'pixel_art_diffusion_soft_256':
+    model_config.update({
+          'attention_resolutions': '16',
+          'class_cond': False,
+          'diffusion_steps': 1000,
+          'rescale_timesteps': True,
+          'timestep_respacing': 'ddim100',
+          'image_size': 256,
+          'learn_sigma': True,
+          'noise_schedule': 'linear',
+          'num_channels': 128,
+          'num_heads': 1,
+          'num_res_blocks': 2,
+          'use_checkpoint': use_checkpoint,
+          'use_fp16': True,
+          'use_scale_shift_norm': False,
+      })
+
 
 model_default = model_config['image_size']
 

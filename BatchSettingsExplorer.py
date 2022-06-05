@@ -12,11 +12,18 @@ parser.add_argument(
     help='A settings JSON file to use, best to put in quotes.'
 )
 
+parser.add_argument(
+    '-p',
+    '--prd',
+    help='The PRD command to use (minus "python prd.py"). Put the *whole thing* in single quotes, using escaped double quotes within if needed. Example: -p=\'-s settings.json -p=\\"my prompt\\"\''
+)
+
 parser.add_argument("-x", '--xDimension', action='store_true',
                     help="Batch every possible setting in multidimensionnal grid.")
 
 args = parser.parse_args()
 
+print(args)
 # open the json file from the command line
 try:
     with open(args.settings) as json_file:
@@ -77,7 +84,7 @@ def ExecuteProgrockdiffusionWith(temporarySetting):
     f.close()
     temporarySetting.clear()
     # Execute progrockdiffusion with the temporary setting file
-    os.system('python prd.py -s settings.json -s tmp.json')
+    os.system(f'python prd.py {args.prd} -s tmp.json')
 
 
 def N_DimensionalSetting():

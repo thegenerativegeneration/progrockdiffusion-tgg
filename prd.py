@@ -334,7 +334,7 @@ my_parser.add_argument(
     action='store',
     required=False,
     default=False,
-    const=0.2,
+    const=20,
     help=
     'Save a partial image at the specified percent of steps (1 to 99), for use as later init image'
 )
@@ -720,12 +720,12 @@ if cl_args.geninit:
         geninitamount = float(cl_args.geninit /
                               100)  # turn it into a float percent
         print(
-            f'GenInit mode enabled. A checkpoint image will be saved at {cl_args.geninit}% of steps.'
+            f'GenInit mode enabled. A checkpoint image will be saved at {cl_args.geninit:.1%} of steps.'
         )
     else:
         geninitamount = 0.2
         print(
-            f'GenInit mode enabled. Provided number was out of bounds, so using {geninitamount} of steps instead.'
+            f'GenInit mode enabled. Provided number was out of bounds, so using {geninitamount:.1%} of steps instead.'
         )
 else:
     geninit = False
@@ -739,7 +739,7 @@ if skip_steps == 0 and init_image is not None:
 if cl_args.useinit:
     if skip_steps == 0:
         skip_steps = (
-            int(steps * 0.33)
+            int(steps * 0.2)
         )  # don't change skip_steps if the settings file specified one
     if path.exists(f'{cl_args.useinit}'):
         useinit = True
@@ -2823,7 +2823,9 @@ intermediates_in_subfolder = True  #@param{type: 'boolean'}
 
 # Save a checkpoint at 20% for use as a later init image
 if geninit:
-    intermediate_saves = [(steps * geninitamount)]
+    intermediate_saves = [int(steps * geninitamount)]
+    print(f'debug: steps is {steps} and geninitamount is {geninitamount}')
+    print(f'debug: intermediate_saves is {intermediate_saves}')
 
 # Save partial run at specific steps, or at percentage of steps
 if type(intermediate_saves) is list:

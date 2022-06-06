@@ -145,6 +145,7 @@ pip install grpcio
 ```
 pip install ipywidgets omegaconf pytorch_lightning einops
 pip install matplotlib pandas
+pip install 'Pillow>=9.1.0'
 conda install opencv
 ```
 **[Linux]** Depending on your Linux platform, you may get an error about libGL.so.1

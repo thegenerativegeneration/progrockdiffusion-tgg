@@ -297,8 +297,7 @@ conda activate prdcpu
 
 # Notes
 
-- Currently Superres Sampling doesn't work, it will crash.
-- Animations are untested but likely not working
+- Animations not working
 
 # TODO
 

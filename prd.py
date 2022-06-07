@@ -1227,7 +1227,7 @@ class MakeCutoutsDango(nn.Module):
 
             if cutout_debug:
                 TF.to_pil_image(cutouts[0].clamp(0, 1).squeeze(0)).save(
-                    "/content/cutout_overview0.jpg", quality=99)
+                    "content/cutout_overview0.jpg", quality=99)
 
         if self.InnerCrop > 0:
             for i in range(self.InnerCrop):
@@ -1244,7 +1244,7 @@ class MakeCutoutsDango(nn.Module):
                 cutouts.append(cutout)
             if cutout_debug:
                 TF.to_pil_image(cutouts[-1].clamp(0, 1).squeeze(0)).save(
-                    "/content/cutout_InnerCrop.jpg", quality=99)
+                    "content/cutout_InnerCrop.jpg", quality=99)
         cutouts = torch.cat(cutouts)
         if skip_augs is not True: cutouts = self.augs(cutouts)
         return cutouts

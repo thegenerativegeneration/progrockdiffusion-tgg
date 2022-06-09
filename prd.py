@@ -813,6 +813,7 @@ if cl_args.prompt:
 
 # Build a list of randomizers to draw from:
 def randomizer(category):
+    random.seed()
     randomizers = []
     with open(f'settings/{category}.txt', encoding="utf-8") as f:
         for line in f:

@@ -124,7 +124,6 @@ from torch.nn import functional as F
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
 from tqdm import tqdm
-from tqdm.auto import trange
 sys.path.append(f'{root_path}/ResizeRight')
 sys.path.append(f'{root_path}/CLIP')
 sys.path.append(f'{root_path}/guided-diffusion')
@@ -417,6 +416,14 @@ my_parser.add_argument(
     help=
     'Use latent diffusion to generate an init image'
 )
+
+my_parser.add_argument('--latentinit',
+                       action='store',
+                       nargs='?',
+                       required=False,
+                       default=False,
+                       const= (f"{initDirPath}/latent_init0.png"),
+                       help='Use the specified init image')
 
 cl_args = my_parser.parse_args()
 
@@ -767,17 +774,32 @@ if cl_args.useinit:
             f'UseInit mode is using {cl_args.useinit} and starting at {skip_steps}.'
         )
     else:
-        init_image = 'geninit.png'
+        init_image = ('geninit.png')
         if path.exists(init_image):
             print(
                 f'UseInit mode is using {init_image} and starting at {skip_steps}.'
             )
             useinit = True
         else:
-            print('No init image found. Uneinit mode canceled.')
+            print('No init image found. Useinit mode canceled.')
             useinit = False
 else:
     useinit = False
+
+if cl_args.latentinit:
+    if path.exists(f'{cl_args.latentinit}'):
+        useinit = True
+        if skip_steps == 0:
+            skip_steps = (
+                int(steps * 0.6)
+            )  # don't change skip_steps if the settings file specified one
+        init_image = cl_args.latentinit
+        print(
+            f'LatentInit mode is using {cl_args.latentinit} and starting at {skip_steps}.'
+        )
+    else:
+        print('No init image found. Latentinit mode canceled.')
+        useinit = False
 
 #Automatic Eta based on steps
 if eta == 'auto':
@@ -1034,7 +1056,7 @@ def run_ld(opt):
             with model_ld.ema_scope():
                 i = 0
                 while i < opt.ld_n_batches:
-                    for n in trange(opt.n_iter, desc="Sampling"):
+                    for n in range(opt.n_iter):
                         uc = None
                         if opt.scale[n] > 0:
                             uc = model_ld.get_learned_conditioning(opt.n_samples * [""])
@@ -3160,51 +3182,59 @@ args = {
 
 args = SimpleNamespace(**args)
 
-# # latent diffusion settings
-# l_prompt = ["A photo with thousands of balloons."] #@param{type:"raw"} #@markdown `prompt_1` define the global shape of the desired result.
-# l_Steps = [50] #@param {type:"raw"}
-# l_ETA =  0.0#@param{type:"number"}
-# l_Iterations =  3#@param{type:"integer"}
-# l_Width=256 #@param{type:"integer"}
-# l_Height=256 #@param{type:"integer"}
-# l_Samples_in_parallel=3 #@param{type:"integer"}
-# l_Diversity_scale=[7.5] #@param {type:"raw"}
-# l_Seed = -1#@param{type: 'integer'}
-# l_NSFW_threshold=0.5 #@param {type:"number"}
-# l_PLMS_sampling=False #@param {type:"boolean"}
-# l_keep_res_idx = [] #@param {type:"raw"}
-
-# if not isinstance(l_prompt_1, list) : l_prompt_1 = [l_prompt_1]
-# if not isinstance(l_Steps, list) : l_Steps = [l_Steps]
-# if not isinstance(l_Diversity_scale, list) : l_Diversity_scale = [l_Diversity_scale]
-
-# prompt_1 = reach(l_prompt, l_Iterations)
-# Steps = reach(l_Steps, l_Iterations)
-# Diversity_scale = reach(l_Diversity_scale, l_Iterations)
 
 # LATENT DIFFUSION INIT GENERATION
 if cl_args.latent == True:
     print('Generating init image with Latent Diffusion')
-    rseed = random.randint(0, 2**32) if seed <0 else seed
+    try:
+        with open("ld_settings.json", 'r', encoding="utf-8") as ld_json_file:
+            print(f'Parsing ld_settings.json')
+            ld_settings_file = json.load(ld_json_file)
+            if is_json_key_present(ld_settings_file, 'l_prompt'): l_prompt = (ld_settings_file['l_prompt'])
+            else: l_prompt = ["A knight in shining armor"]
+            if is_json_key_present(ld_settings_file, 'l_n_batches'): l_n_batches = (ld_settings_file['l_n_batches'])
+            else: l_n_batches = 1
+            if is_json_key_present(ld_settings_file, 'l_ddim_steps'): l_ddim_steps = (ld_settings_file['l_ddim_steps'])
+            else: l_ddim_steps = [50]
+            if is_json_key_present(ld_settings_file, 'l_ddim_eta'): l_ddim_eta = (ld_settings_file['l_ddim_eta'])
+            else: l_ddim_eta = 0.0
+            if is_json_key_present(ld_settings_file, 'l_W'): l_W = (ld_settings_file['l_W'])
+            else: l_W = 256
+            if is_json_key_present(ld_settings_file, 'l_H'): l_H = (ld_settings_file['l_H'])
+            else: l_H = 256
+            if is_json_key_present(ld_settings_file, 'l_diversity_scale'): l_diversity_scale = (ld_settings_file['l_diversity_scale'])
+            else: l_diversity_scale = [7.5]
+            if is_json_key_present(ld_settings_file, 'l_seed'): l_seed = (ld_settings_file['l_seed'])
+            else: l_seed = random.randint(0, 2**32)
+            if isinstance(l_seed, str):
+                l_seed = random.randint(0, 2**32)
+            if is_json_key_present(ld_settings_file, 'l_ddim'): l_ddim = (ld_settings_file['l_ddim'])
+            else: l_ddim = "ddim"
+    except Exception as e:
+        print('Failed to parse Latent Diffusion settings file. Check your JSON.')
+    if l_ddim == "plms":
+        l_plms = True
+    else:
+        l_plms = False
     args_ld = argparse.Namespace(
-        prompt = ["A knight in shining armor"], 
+        prompt = l_prompt, 
         outdir=f'{initDirPath}',
-        ddim_steps = [50],
-        ddim_eta = 0.0,
+        ddim_steps = l_ddim_steps,
+        ddim_eta = l_ddim_eta,
         n_iter = 1,
-        ld_n_batches = 10,
-        W=256,
-        H=256,
+        ld_n_batches = l_n_batches,
+        W= l_W,
+        H= l_H,
         n_samples=1,
-        scale=[7.5],
-        seed = rseed,
-        plms=False,
+        scale= l_diversity_scale,
+        seed = l_seed,
+        plms= l_plms,
         #nsfw_threshold=NSFW_threshold,
         image_prompt=False, #(inpaint_path if inpainting_mode else False),
         mask_prompt=False, #(mask_path if inpainting_mode else False),
         keep_res=[]
         )
-    print('Seed: '+str(rseed))
+    print('Seed: '+str(args_ld.seed))
     ld_init_images = run_ld(args_ld)
     i = 0
     for ld_init_image in ld_init_images:

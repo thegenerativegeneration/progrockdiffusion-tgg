@@ -1,0 +1,11 @@
+{
+    "l_prompt": ["A knight in shining armor."],
+    "l_n_batches": 10,
+    "l_ddim_steps": [50],
+    "l_ddim_eta": 0.0,
+    "l_W": 256,
+    "l_H": 256,
+    "l_diversity_scale": [7.5],
+    "l_seed": "random",
+    "l_ddim": "ddim"
+}

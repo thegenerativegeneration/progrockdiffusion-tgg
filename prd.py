@@ -51,6 +51,14 @@ Comic faces model by alex_spirin
 
 #@title <- View Changelog
 
+"""
+Installation updates for latent:
+git clone "https://github.com/crowsonkb/latent-diffusion.git"
+git clone "https://github.com/CompVis/taming-transformers"
+pip install -e ./taming-transformers
+pip install transformers
+"""
+
 import os
 from os import path
 from pickle import FALSE
@@ -116,9 +124,11 @@ from torch.nn import functional as F
 import torchvision.transforms as T
 import torchvision.transforms.functional as TF
 from tqdm import tqdm
+from tqdm.auto import trange
 sys.path.append(f'{root_path}/ResizeRight')
 sys.path.append(f'{root_path}/CLIP')
 sys.path.append(f'{root_path}/guided-diffusion')
+
 #sys.path.append(f'{root_path}/SLIP')
 import clip
 from resize_right import resize
@@ -133,7 +143,6 @@ from ipywidgets import Output
 import hashlib
 import urllib.request
 from os.path import exists
-
 
 # Setting default values for everything, which can then be overridden by settings files.
 batch_name = "Default"
@@ -399,6 +408,16 @@ my_parser.add_argument(
     help=
     'Do not check values to make sure they are sensible.'
 )
+
+my_parser.add_argument(
+    '--latent',
+    action='store_true',
+    required=False,
+    default=False,
+    help=
+    'Use latent diffusion to generate an init image'
+)
+
 cl_args = my_parser.parse_args()
 
 
@@ -922,6 +941,143 @@ else:
         torch.backends.cudnn.enabled = False
 
 print('Using device:', device)
+
+# LATENT DIFFUSION:
+# Latent setup:
+if cl_args.latent:
+    sys.path.append(f'{root_path}/latent-diffusion')
+    from ldm.util import instantiate_from_config
+    from ldm.models.diffusion.ddim import DDIMSampler
+    from ldm.models.diffusion.plms import PLMSSampler
+    from omegaconf import OmegaConf
+    from einops import rearrange, repeat
+    latent_link = "https://ommer-lab.com/files/latent-diffusion/nitro/txt2img-f8-large/model.ckpt"
+    latent_path = f"{model_path}/latent_diffusion_txt2img_f8_large.ckpt"
+    if os.path.isfile(latent_path):
+        print('Latent diffusion model already downloaded.')
+    else:
+        print('Latent diffusion model downloading. Please wait.')
+        urllib.request.urlretrieve(latent_link, latent_path)
+
+# Latent functions:
+def reach(li, to_n):
+    if len(li)==0:
+        return li
+    return (li + ([li[-1]] * max(0, to_n-len(li))))[:to_n]
+
+def preprocess_image(image_path):
+    image = Image.open(image_path)
+    if not image.mode == "RGB":
+        image = image.convert("RGB")
+    image = np.array(image).astype(np.uint8)
+    image = (image/127.5 - 1.0).astype(np.float32)
+    return image
+
+def preprocess_mask(mask_path, h, w):
+    mask = Image.open(mask_path).convert('1')
+    mask_resize = mask.resize((w, h))
+    return np.array(mask_resize).astype(np.float32)
+
+def load_model_from_config(config, ckpt, verbose=False):
+    print(f"Loading model from {ckpt}")
+    pl_sd = torch.load(ckpt, map_location="cuda:0")
+    sd = pl_sd["state_dict"]
+    model_ld = instantiate_from_config(config.model)
+    m, u = model_ld.load_state_dict(sd, strict=False)
+    if len(m) > 0 and verbose:
+        print("missing keys:")
+        print(m)
+    if len(u) > 0 and verbose:
+        print("unexpected keys:")
+        print(u)
+
+    model_ld = model_ld.half().cuda()
+    model_ld.eval()
+    return model_ld
+
+# Latent Additional setup
+if cl_args.latent:
+    config = OmegaConf.load("latent-diffusion/configs/latent-diffusion/txt2img-1p4B-eval.yaml")
+    model_ld = load_model_from_config(config, f"{model_path}/latent_diffusion_txt2img_f8_large.ckpt")
+    device_ld = device
+    model_ld = model_ld.to(device_ld)
+
+def run_ld(opt):
+    torch.cuda.empty_cache()
+    gc.collect()
+    if opt.plms:
+        opt.ddim_eta = 0
+        sampler = PLMSSampler(model_ld)
+    else:
+        sampler = DDIMSampler(model_ld)
+
+    np.random.seed(opt.seed)
+    random.seed(opt.seed)
+    torch.manual_seed(opt.seed)
+    torch.cuda.manual_seed_all(opt.seed)
+    torch.backends.cudnn.deterministic = True
+    
+    base_count = 0
+
+    prompt = opt.prompt
+    image_prompt = opt.image_prompt
+    mask_prompt = opt.mask_prompt
+
+    # by default not do inpaint
+    x0 = None
+    mask = None
+    output = []
+
+    all_samples=list()
+    with torch.no_grad():
+        with torch.cuda.amp.autocast():
+            with model_ld.ema_scope():
+                i = 0
+                while i < opt.ld_n_batches:
+                    for n in trange(opt.n_iter, desc="Sampling"):
+                        uc = None
+                        if opt.scale[n] > 0:
+                            uc = model_ld.get_learned_conditioning(opt.n_samples * [""])
+                        c = model_ld.get_learned_conditioning(opt.n_samples * [prompt[n]])
+                        shape = [4, opt.H//8, opt.W//8]
+                        if image_prompt and mask_prompt:
+                            samples_ddim, _ = sampler.sample(S=opt.ddim_steps[n],
+                                                        conditioning=c,
+                                                        batch_size=opt.n_samples,
+                                                        shape=shape,
+                                                        verbose=False,
+                                                        unconditional_guidance_scale=opt.scale[n],
+                                                        unconditional_conditioning=uc,
+                                                        x0=x0,
+                                                        mask=mask,
+                                                        eta=opt.ddim_eta)
+                        else:
+                            samples_ddim, _ = sampler.sample(S=opt.ddim_steps[n],
+                                                        conditioning=c,
+                                                        batch_size=opt.n_samples,
+                                                        shape=shape,
+                                                        verbose=False,
+                                                        unconditional_guidance_scale=opt.scale[n],
+                                                        unconditional_conditioning=uc,
+                                                        eta=opt.ddim_eta)
+
+                        x_samples_ddim = model_ld.decode_first_stage(samples_ddim)
+                        x_samples_ddim = torch.clamp((x_samples_ddim+1.0)/2.0, min=0.0, max=1.0)
+
+                        for x_sample in x_samples_ddim:
+                            x_sample = 255. * rearrange(x_sample.cpu().numpy(), 'c h w -> h w c')
+                            image_vector = Image.fromarray(x_sample.astype(np.uint8))
+                            #image = preprocess(image_vector).unsqueeze(0)
+                            #with torch.no_grad():
+                            #  image_features = clip_model_ld.encode_image(image)
+                            #image_features /= image_features.norm(dim=-1, keepdim=True)
+                            #query = image_features.cpu().detach().numpy().astype("float32")
+                            base_count += 1
+                        all_samples.append(x_samples_ddim)
+                    output.append(image_vector)
+                    i += 1
+    return(output)
+
 
 #@title 2.2 Define necessary functions
 
@@ -3004,6 +3160,61 @@ args = {
 
 args = SimpleNamespace(**args)
 
+# # latent diffusion settings
+# l_prompt = ["A photo with thousands of balloons."] #@param{type:"raw"} #@markdown `prompt_1` define the global shape of the desired result.
+# l_Steps = [50] #@param {type:"raw"}
+# l_ETA =  0.0#@param{type:"number"}
+# l_Iterations =  3#@param{type:"integer"}
+# l_Width=256 #@param{type:"integer"}
+# l_Height=256 #@param{type:"integer"}
+# l_Samples_in_parallel=3 #@param{type:"integer"}
+# l_Diversity_scale=[7.5] #@param {type:"raw"}
+# l_Seed = -1#@param{type: 'integer'}
+# l_NSFW_threshold=0.5 #@param {type:"number"}
+# l_PLMS_sampling=False #@param {type:"boolean"}
+# l_keep_res_idx = [] #@param {type:"raw"}
+
+# if not isinstance(l_prompt_1, list) : l_prompt_1 = [l_prompt_1]
+# if not isinstance(l_Steps, list) : l_Steps = [l_Steps]
+# if not isinstance(l_Diversity_scale, list) : l_Diversity_scale = [l_Diversity_scale]
+
+# prompt_1 = reach(l_prompt, l_Iterations)
+# Steps = reach(l_Steps, l_Iterations)
+# Diversity_scale = reach(l_Diversity_scale, l_Iterations)
+
+# LATENT DIFFUSION INIT GENERATION
+if cl_args.latent == True:
+    print('Generating init image with Latent Diffusion')
+    rseed = random.randint(0, 2**32) if seed <0 else seed
+    args_ld = argparse.Namespace(
+        prompt = ["A knight in shining armor"], 
+        outdir=f'{initDirPath}',
+        ddim_steps = [50],
+        ddim_eta = 0.0,
+        n_iter = 1,
+        ld_n_batches = 10,
+        W=256,
+        H=256,
+        n_samples=1,
+        scale=[7.5],
+        seed = rseed,
+        plms=False,
+        #nsfw_threshold=NSFW_threshold,
+        image_prompt=False, #(inpaint_path if inpainting_mode else False),
+        mask_prompt=False, #(mask_path if inpainting_mode else False),
+        keep_res=[]
+        )
+    print('Seed: '+str(rseed))
+    ld_init_images = run_ld(args_ld)
+    i = 0
+    for ld_init_image in ld_init_images:
+        ld_init_image.save(f'{initDirPath}/latent_init{i}.png')
+        print(f'Saved latent output: {initDirPath}/latent_init{i}.png')
+        i += 1
+    print('Latent Diffusion run is complete.')
+    print('You can use one of the outputs as an init image, \nor run prd.py again with --latentinit to just go with the first one.')
+    quit()
+
 if cl_args.gobiginit == None:
     model, diffusion = create_model_and_diffusion(**model_config)
     #print(f'Prepping model: {model_path}/{diffusion_model}.pt')
@@ -3096,6 +3307,7 @@ def slice(source):
             edgex = x + slice_width
             i += 1
     return (slices)
+
 
 # FINALLY DO THE RUN
 try:

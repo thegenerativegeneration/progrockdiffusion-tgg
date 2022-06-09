@@ -17,7 +17,6 @@ artistic photograph
 surveillance footage
 graffiti
 sculpture
-Veduta painting
 Panorama
 Fresco painting
 Chiaroscuro painting
@@ -27,11 +26,9 @@ Trompe L’oeil
 Impasto painting
 Sfumato painting
 Byzantine mosaic
-digital painting
 pastel painting
 Grisaille painting
 Perspective painting
-Veduta painting
 Sotto In Su
 Ukiyo-e
 Baroque painting

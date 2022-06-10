@@ -59,7 +59,8 @@ RUN echo "!! install torch, torchvision, torchaudio, imagemagic, ffmpeg, misc" &
     apt-get install ffmpeg libsm6 libxext6 -y && \
     apt install imagemagick caca-utils -y && \
     pip install ipywidgets omegaconf pytorch_lightning einops && \
-    pip install matplotlib pandas
+    pip install matplotlib pandas && \
+    pip install json5 numexpr
 
 RUN echo "!! Run a single fake frame to get the default model downloaded and baked into the image" && \
     cd progrockdiffusion && \

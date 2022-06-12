@@ -3023,7 +3023,6 @@ if cl_args.gobiginit == None:
     #print(f'Prepping model: {model_path}/{diffusion_model}.pt')
     model.to(device)
     model.load_state_dict(
-        #torch.load(f'{model_path}/{diffusion_model}.pt', map_location=device))
         torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
     model.requires_grad_(False).eval()
     for name, param in model.named_parameters():

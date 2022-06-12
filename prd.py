@@ -1659,8 +1659,9 @@ def do_run():
             #print('')
             #display.display(image_display)
             gc.collect()
-            with torch.cuda.device(device):
-                torch.cuda.empty_cache()
+            if "cuda" in str(device):
+                with torch.cuda.device(device):
+                    torch.cuda.empty_cache()
             cur_t = diffusion.num_timesteps - skip_steps - 1
             global actual_total_steps
             global actual_run_steps
@@ -1813,8 +1814,9 @@ def do_run():
                                             print('Resizing with ESRGAN')
                                             try:
                                                 gc.collect()
-                                                with torch.cuda.device(device):
-                                                    torch.cuda.empty_cache()
+                                                if "cuda" in str(device):
+                                                    with torch.cuda.device(device):
+                                                        torch.cuda.empty_cache()
                                                 subprocess.run([
                                                    'realesrgan-ncnn-vulkan', '-i', f'{batchFolder}/{filename}', '-o', f'{batchFolder}/ESRGAN-{filename}'
                                                    ], stdout=subprocess.PIPE).stdout.decode('utf-8')
@@ -3030,8 +3032,9 @@ if cl_args.gobiginit == None:
     if model_config['use_fp16']:
         model.convert_to_fp16()
     gc.collect()
-    with torch.cuda.device(device):
-        torch.cuda.empty_cache()
+    if "cuda" in str(device):
+        with torch.cuda.device(device):
+            torch.cuda.empty_cache()
 
 # FUNCTIONS FOR GO BIG MODE
 #gobig_scale = 2 # how many multiples of the original resolution. Eventually make this configurable
@@ -3169,8 +3172,9 @@ try:
                 if model_config['use_fp16']:
                     model.convert_to_fp16()
                 gc.collect()
-                with torch.cuda.device(device):
-                    torch.cuda.empty_cache()
+                if "cuda" in str(device):
+                    with torch.cuda.device(device):
+                        torch.cuda.empty_cache()
                 #no do the next run
                 chunk.save(slice_image)
                 args.init_image = slice_image
@@ -3226,8 +3230,9 @@ except KeyboardInterrupt:
 finally:
     print('\n\nAll image(s) finished.')
     gc.collect()
-    with torch.cuda.device(device):
-        torch.cuda.empty_cache()
+    if "cuda" in str(device):
+        with torch.cuda.device(device):
+            torch.cuda.empty_cache()
 
 # @title ### **Create video**
 

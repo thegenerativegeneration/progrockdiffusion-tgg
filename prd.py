@@ -1659,7 +1659,8 @@ def do_run():
             #print('')
             #display.display(image_display)
             gc.collect()
-            torch.cuda.empty_cache()
+            with torch.cuda.device(device):
+                torch.cuda.empty_cache()
             cur_t = diffusion.num_timesteps - skip_steps - 1
             global actual_total_steps
             global actual_run_steps
@@ -1812,7 +1813,8 @@ def do_run():
                                             print('Resizing with ESRGAN')
                                             try:
                                                 gc.collect()
-                                                torch.cuda.empty_cache()
+                                                with torch.cuda.device(device):
+                                                    torch.cuda.empty_cache()
                                                 subprocess.run([
                                                    'realesrgan-ncnn-vulkan', '-i', f'{batchFolder}/{filename}', '-o', f'{batchFolder}/ESRGAN-{filename}'
                                                    ], stdout=subprocess.PIPE).stdout.decode('utf-8')
@@ -2505,47 +2507,56 @@ if ViTB32 is True:
     clip_modelname.append('ViTB32')
     clip_models.append(
         clip.load('ViT-B/32',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if ViTB16 is True:
     clip_modelname.append('ViTB16')
     clip_models.append(
         clip.load('ViT-B/16',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if ViTL14 is True:
     clip_modelname.append('ViTL14')
     clip_models.append(
         clip.load('ViT-L/14',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if ViTL14_336 is True:
     clip_modelname.append('ViTL14_336')
     clip_models.append(
         clip.load('ViT-L/14@336px',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN50 is True:
     clip_modelname.append('RN50')
     clip_models.append(
         clip.load('RN50',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN50x4 is True:
     clip_modelname.append('RN50x4')
     clip_models.append(
         clip.load('RN50x4',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN50x16 is True:
     clip_modelname.append('RN50x16')
     clip_models.append(
         clip.load('RN50x16',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN50x64 is True:
     clip_modelname.append('RN50x64')
     clip_models.append(
         clip.load('RN50x64',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN101 is True:
     clip_modelname.append('RN101')
     clip_models.append(
         clip.load('RN101',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 
 """
 if SLIPB16:
@@ -3008,16 +3019,19 @@ args = SimpleNamespace(**args)
 if cl_args.gobiginit == None:
     model, diffusion = create_model_and_diffusion(**model_config)
     #print(f'Prepping model: {model_path}/{diffusion_model}.pt')
+    model.to(device)
     model.load_state_dict(
+        #torch.load(f'{model_path}/{diffusion_model}.pt', map_location=device))
         torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
-    model.requires_grad_(False).eval().to(device)
+    model.requires_grad_(False).eval()
     for name, param in model.named_parameters():
         if 'qkv' in name or 'norm' in name or 'proj' in name:
             param.requires_grad_()
     if model_config['use_fp16']:
         model.convert_to_fp16()
     gc.collect()
-    torch.cuda.empty_cache()
+    with torch.cuda.device(device):
+        torch.cuda.empty_cache()
 
 # FUNCTIONS FOR GO BIG MODE
 #gobig_scale = 2 # how many multiples of the original resolution. Eventually make this configurable
@@ -3155,7 +3169,8 @@ try:
                 if model_config['use_fp16']:
                     model.convert_to_fp16()
                 gc.collect()
-                torch.cuda.empty_cache()
+                with torch.cuda.device(device):
+                    torch.cuda.empty_cache()
                 #no do the next run
                 chunk.save(slice_image)
                 args.init_image = slice_image
@@ -3211,7 +3226,8 @@ except KeyboardInterrupt:
 finally:
     print('\n\nAll image(s) finished.')
     gc.collect()
-    torch.cuda.empty_cache()
+    with torch.cuda.device(device):
+        torch.cuda.empty_cache()
 
 # @title ### **Create video**
 

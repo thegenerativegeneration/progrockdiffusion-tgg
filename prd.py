@@ -1659,7 +1659,8 @@ def do_run():
             #print('')
             #display.display(image_display)
             gc.collect()
-            torch.cuda.empty_cache()
+            with torch.cuda.device(device):
+                torch.cuda.empty_cache()
             cur_t = diffusion.num_timesteps - skip_steps - 1
             global actual_total_steps
             global actual_run_steps
@@ -1812,7 +1813,8 @@ def do_run():
                                             print('Resizing with ESRGAN')
                                             try:
                                                 gc.collect()
-                                                torch.cuda.empty_cache()
+                                                with torch.cuda.device(device):
+                                                    torch.cuda.empty_cache()
                                                 subprocess.run([
                                                    'realesrgan-ncnn-vulkan', '-i', f'{batchFolder}/{filename}', '-o', f'{batchFolder}/ESRGAN-{filename}'
                                                    ], stdout=subprocess.PIPE).stdout.decode('utf-8')
@@ -3017,16 +3019,19 @@ args = SimpleNamespace(**args)
 if cl_args.gobiginit == None:
     model, diffusion = create_model_and_diffusion(**model_config)
     #print(f'Prepping model: {model_path}/{diffusion_model}.pt')
+    model.to(device)
     model.load_state_dict(
+        #torch.load(f'{model_path}/{diffusion_model}.pt', map_location=device))
         torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
-    model.requires_grad_(False).eval().to(device)
+    model.requires_grad_(False).eval()
     for name, param in model.named_parameters():
         if 'qkv' in name or 'norm' in name or 'proj' in name:
             param.requires_grad_()
     if model_config['use_fp16']:
         model.convert_to_fp16()
     gc.collect()
-    torch.cuda.empty_cache()
+    with torch.cuda.device(device):
+        torch.cuda.empty_cache()
 
 # FUNCTIONS FOR GO BIG MODE
 #gobig_scale = 2 # how many multiples of the original resolution. Eventually make this configurable
@@ -3164,7 +3169,8 @@ try:
                 if model_config['use_fp16']:
                     model.convert_to_fp16()
                 gc.collect()
-                torch.cuda.empty_cache()
+                with torch.cuda.device(device):
+                    torch.cuda.empty_cache()
                 #no do the next run
                 chunk.save(slice_image)
                 args.init_image = slice_image
@@ -3220,7 +3226,8 @@ except KeyboardInterrupt:
 finally:
     print('\n\nAll image(s) finished.')
     gc.collect()
-    torch.cuda.empty_cache()
+    with torch.cuda.device(device):
+        torch.cuda.empty_cache()
 
 # @title ### **Create video**
 

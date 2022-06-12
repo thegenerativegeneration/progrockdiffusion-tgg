@@ -2505,47 +2505,56 @@ if ViTB32 is True:
     clip_modelname.append('ViTB32')
     clip_models.append(
         clip.load('ViT-B/32',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if ViTB16 is True:
     clip_modelname.append('ViTB16')
     clip_models.append(
         clip.load('ViT-B/16',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if ViTL14 is True:
     clip_modelname.append('ViTL14')
     clip_models.append(
         clip.load('ViT-L/14',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if ViTL14_336 is True:
     clip_modelname.append('ViTL14_336')
     clip_models.append(
         clip.load('ViT-L/14@336px',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN50 is True:
     clip_modelname.append('RN50')
     clip_models.append(
         clip.load('RN50',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN50x4 is True:
     clip_modelname.append('RN50x4')
     clip_models.append(
         clip.load('RN50x4',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN50x16 is True:
     clip_modelname.append('RN50x16')
     clip_models.append(
         clip.load('RN50x16',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN50x64 is True:
     clip_modelname.append('RN50x64')
     clip_models.append(
         clip.load('RN50x64',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 if RN101 is True:
     clip_modelname.append('RN101')
     clip_models.append(
         clip.load('RN101',
-                  jit=False)[0].eval().requires_grad_(False).to(device))
+                  jit=False,
+                  device=device)[0].eval().requires_grad_(False))
 
 """
 if SLIPB16:

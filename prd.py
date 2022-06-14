@@ -555,7 +555,9 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'cut_innercut'):
                 cut_innercut = (settings_file['cut_innercut'])
             if is_json_key_present(settings_file, 'cut_ic_pow'):
-                cut_ic_pow = clampval(0.5, (settings_file['cut_ic_pow']), 100)
+                cut_ic_pow = (settings_file['cut_ic_pow'])
+                if type(cut_ic_pow) != str:
+                    cut_ic_pow = clampval(0.0, cut_ic_pow, 100)
             if is_json_key_present(settings_file, 'cut_ic_pow_final'):
                 cut_ic_pow_final = (settings_file['cut_ic_pow_final'])
                 if type(cut_ic_pow_final) is not str:
@@ -1570,18 +1572,11 @@ def do_run():
                         except:
                             input_resolution = 224
 
-                        temp_ic_pow = 0.0
-                        if type(args.cut_ic_pow_final) is int:
-                            # interpolate value if we have a range of cut_ic_pow to do
-                            percent_done = (steps - cur_t) / steps
-                            temp_ic_pow = val_interpolate(0.0, float(args.cut_ic_pow), 1.0, float(args.cut_ic_pow_final), float(percent_done))
-                        else:
-                            temp_ic_pow = args.cut_ic_pow
                         cuts = MakeCutoutsDango(
                             input_resolution,
                             Overview=args.cut_overview[1000 - t_int],
                             InnerCrop=args.cut_innercut[1000 - t_int],
-                            IC_Size_Pow=temp_ic_pow,
+                            IC_Size_Pow=args.cut_ic_pow[1000 - t_int],
                             IC_Grey_P=args.cut_icgray_p[1000 - t_int])
                         clip_in = normalize(cuts(x_in.add(1).div(2)))
                         image_embeds = model_stat["clip_model"].encode_image(
@@ -1958,7 +1953,7 @@ def save_settings():
 #        'SLIPL16': SLIPL16,
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
-        'cut_ic_pow': cut_ic_pow,
+        'cut_ic_pow': og_cut_ic_pow,
         'cut_ic_pow_final': cut_ic_pow_final,
         'cut_icgray_p': str(cut_icgray_p),
         'animation_mode': animation_mode,
@@ -2939,7 +2934,25 @@ if set_seed == 'random_seed':
 else:
     seed = int(set_seed)
 
+# convert old school cut_ic_pow values into array style, including when interpolation is being used
+# This will create a string that resembles the cut_overview scheduling method, in the event the user just supplies a simple number,
+# that way both methods work.
+og_cut_ic_pow = cut_ic_pow # save this for the settings file later
+if type(cut_ic_pow) != str:
+    if type(cut_ic_pow) != str:
+        # building massive array of numbers because what other choice is there?
+        new_cut_ic_pow = (f"[{cut_ic_pow}]*1+")
+        for i in range(2, 1000):
+            percent_done = i / 1000
+            val = int(val_interpolate(1, int(cut_ic_pow), 1000, int(cut_ic_pow_final), i))
+            new_cut_ic_pow = new_cut_ic_pow + (f"[{val}]*1+")
+        new_cut_ic_pow = new_cut_ic_pow[:-1] # remove the final plus character
+    else:
+        new_cut_ic_pow = (f'[{cut_ic_pow}]*1000')
+    cut_ic_pow = new_cut_ic_pow
+
 print(f'Using seed {seed}')
+
 
 # Leave this section alone, it takes all our settings and puts them in one variable dictionary
 args = {
@@ -2993,7 +3006,7 @@ args = {
     'image_prompts': image_prompts,
     'cut_overview': eval(cut_overview),
     'cut_innercut': eval(cut_innercut),
-    'cut_ic_pow': cut_ic_pow,
+    'cut_ic_pow': eval(cut_ic_pow),
     'cut_ic_pow_final': cut_ic_pow_final,
     'cut_icgray_p': eval(cut_icgray_p),
     'intermediate_saves': intermediate_saves,

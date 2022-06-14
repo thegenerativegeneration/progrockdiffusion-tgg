@@ -222,7 +222,8 @@ keep_unsharp = False  #@param{type: 'boolean'}
 animation_mode = "None" # "Video Input", "2D"
 gobig_orientation = "vertical"
 gobig_scale = 2
-symmetry_loss = False
+symmetry_loss_v = False
+symmetry_loss_h = False
 symm_loss_scale =  161803
 symm_switch = 45
 
@@ -639,8 +640,10 @@ for setting_arg in cl_args.settings:
                 gobig_orientation = (settings_file['gobig_orientation'])
             if is_json_key_present(settings_file, 'gobig_scale'):
                 gobig_scale = int(settings_file['gobig_scale'])
-            if is_json_key_present(settings_file, 'symmetry_loss'):
-                symmetry_loss = (settings_file['symmetry_loss'])
+            if is_json_key_present(settings_file, 'symmetry_loss_v'):
+                symmetry_loss_v = (settings_file['symmetry_loss_v'])
+            if is_json_key_present(settings_file, 'symmetry_loss_h'):
+                symmetry_loss_h = (settings_file['symmetry_loss_h'])
             if is_json_key_present(settings_file, 'symm_loss_scale'):
                 symm_loss_scale = (settings_file['symm_loss_scale'])
             if is_json_key_present(settings_file, 'symm_switch'):
@@ -658,7 +661,7 @@ width_height = [
     width_height[0] * width_height_scale, width_height[1] * width_height_scale
 ]
 
-if symmetry_loss:
+if symmetry_loss_v or symmetry_loss_h:
     symm_switch = 100.*(1. - (symm_switch/steps))
     print(f"Symmetry ends at {100-symm_switch}%")
 
@@ -1268,11 +1271,17 @@ def tv_loss(input):
 def range_loss(input):
     return (input - input.clamp(-1, 1)).pow(2).mean([1, 2, 3])
 
-def symm_loss(im,lpm):
+def symm_loss_v(im,lpm):
     h = int(im.shape[3]/2)
     h1,h2 = im[:,:,:,:h],im[:,:,:,h:]
     h2 = TF.hflip(h2)
     return lpm(h1,h2)
+
+def symm_loss_h(im,lpm):
+    w = int(im.shape[2]/2)
+    w1,w2 = im[:,:,:w,:],im[:,:,w:,:]
+    w2 = TF.vflip(w2)
+    return lpm(w1,w2)
 
 
 stop_on_next_loop = False  # Make sure GPU memory doesn't get corrupted from cancelling the run mid-way through, allow a full frame to complete
@@ -1611,8 +1620,11 @@ def do_run():
                 if init is not None and args.init_scale:
                     init_losses = lpips_model(x_in, init)
                     loss = loss + init_losses.sum() * args.init_scale
-                if args.symmetry_loss and np.array(t.cpu())[0] > 10*args.symm_switch:
-                    sloss = symm_loss(x_in,lpips_model)
+                if args.symmetry_loss_v and np.array(t.cpu())[0] > 10*args.symm_switch:
+                    sloss = symm_loss_v(x_in,lpips_model)
+                    loss = loss + sloss.sum() * args.sloss_scale
+                if args.symmetry_loss_h and np.array(t.cpu())[0] > 10*args.symm_switch:
+                    sloss = symm_loss_h(x_in,lpips_model)
                     loss = loss + sloss.sum() * args.sloss_scale
                 x_in_grad += torch.autograd.grad(loss, x_in)[0]
                 if torch.isnan(x_in_grad).any() == False:
@@ -1992,7 +2004,8 @@ def save_settings():
         'keep_unsharp': keep_unsharp,
         'gobig_orientation': gobig_orientation,
         'gobig_scale': gobig_scale,
-        'symmetry_loss':symmetry_loss,
+        'symmetry_loss_v':symmetry_loss_v,
+        'symmetry_loss_h':symmetry_loss_h,
         'sloss_scale':symm_loss_scale,
         'symm_switch':symm_switch,
     }
@@ -3011,7 +3024,8 @@ args = {
     'fuzzy_prompt': fuzzy_prompt,
     'rand_mag': rand_mag,
     'stop_early': stop_early,
-    'symmetry_loss': symmetry_loss,
+    'symmetry_loss_v': symmetry_loss_v,
+    'symmetry_loss_h': symmetry_loss_h,
     'sloss_scale':symm_loss_scale,
     'symm_switch':symm_switch,
 }
@@ -3177,7 +3191,8 @@ try:
                 #no do the next run
                 chunk.save(slice_image)
                 args.init_image = slice_image
-                args.symmetry_loss = False
+                args.symmetry_loss_v = False
+                args.symmetry_loss_h = False
                 args.skip_steps = int(steps * .6)
                 args.side_x, args.side_y = chunk.size
                 side_x, side_y = chunk.size

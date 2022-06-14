@@ -64,7 +64,8 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **video_init_path** | "/content/training.mp4"| Animation stuff...
 | **extract_nth_frame** | 2 | Animation stuff...
 | **intermediate_saves**   | 0  | Save in progress. A value of `2` will save a copy at 33% and 66%. 0 will save none. A value of `[5, 9, 34, 45]` will save at steps 5, 9, 34, and 45. A value of `[.5, .7, .9]` will save at 50%, 70%, and 90% of total steps (Make sure to include the brackets)
-| **symmetry_loss** | False | Set this to "True" to enable left/right symmetry during the render
+| **symmetry_loss_v** | False | Set this to "True" to enable left/right symmetry during the render
+| **symmetry_loss_h** | False | Set this to "True" to enable top/bottom symmetry during the render
 | **symm_loss_scale** |  161803 | helps control how closely each side should match during symmetry (?)
 | **symm_switch** | 45 | what step to stop doing symmetry mode
 

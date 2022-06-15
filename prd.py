@@ -2955,10 +2955,10 @@ else:
 # that way both methods work.
 og_cut_ic_pow = cut_ic_pow # save this for the settings file later
 if type(cut_ic_pow) != str:
-    if type(cut_ic_pow) != str:
+    if type(cut_ic_pow_final) != str:
         # building massive array of numbers because what other choice is there?
         new_cut_ic_pow = (f"[{cut_ic_pow}]*1+")
-        for i in range(2, 1000):
+        for i in range(1, 1000):
             percent_done = i / 1000
             val = int(val_interpolate(1, int(cut_ic_pow), 1000, int(cut_ic_pow_final), i))
             new_cut_ic_pow = new_cut_ic_pow + (f"[{val}]*1+")

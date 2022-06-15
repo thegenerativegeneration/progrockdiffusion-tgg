@@ -59,6 +59,7 @@ RUN echo "!! install torch, torchvision, torchaudio, imagemagic, ffmpeg, misc" &
     pip install json5 numexpr
 
 RUN echo "!! Run a single fake frame to get the default model downloaded and baked into the image" && \
+    cd progrockdiffusion && \
     python3 prd.py -s settings/validate.json
 
 # CMD /bin/bash

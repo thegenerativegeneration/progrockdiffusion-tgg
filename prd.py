@@ -642,6 +642,9 @@ for setting_arg in cl_args.settings:
                 gobig_orientation = (settings_file['gobig_orientation'])
             if is_json_key_present(settings_file, 'gobig_scale'):
                 gobig_scale = int(settings_file['gobig_scale'])
+            if is_json_key_present(settings_file, 'symmetry_loss'):
+                symmetry_loss_v = (settings_file['symmetry_loss'])
+                print("symmetry_loss was depracated, please use symmetry_loss_v in the future")
             if is_json_key_present(settings_file, 'symmetry_loss_v'):
                 symmetry_loss_v = (settings_file['symmetry_loss_v'])
             if is_json_key_present(settings_file, 'symmetry_loss_h'):

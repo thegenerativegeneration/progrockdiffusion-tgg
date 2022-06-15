@@ -38,7 +38,7 @@ RUN echo "!! Pulling the various repos" && \
     cd progrockdiffusion && \
     git clone https://github.com/crowsonkb/guided-diffusion && \
     git clone https://github.com/openai/CLIP.git && \
-    git clone https://github.com/assafshocher/ResizeRight.git && \
+    git clone https://github.com/assafshocher/ResizeRight.git
 
 RUN echo "!! pip installing the repos" && \
     cd progrockdiffusion && \

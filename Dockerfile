@@ -39,9 +39,6 @@ RUN echo "!! Pulling the various repos" && \
     git clone https://github.com/crowsonkb/guided-diffusion && \
     git clone https://github.com/openai/CLIP.git && \
     git clone https://github.com/assafshocher/ResizeRight.git && \
-    git clone https://github.com/facebookresearch/SLIP.git && \
-    git clone https://github.com/CompVis/latent-diffusion.git && \
-    git clone https://github.com/CompVis/taming-transformers
 
 RUN echo "!! pip installing the repos" && \
     cd progrockdiffusion && \
@@ -49,7 +46,6 @@ RUN echo "!! pip installing the repos" && \
     pip install opencv-python && \
     pip install -e ./CLIP && \
     pip install -e ./guided-diffusion && \
-    pip install -e ./taming-transformers && \
     pip install lpips datetime timm
 
 RUN echo "!! install torch, torchvision, torchaudio, imagemagic, ffmpeg, misc" && \
@@ -63,7 +59,6 @@ RUN echo "!! install torch, torchvision, torchaudio, imagemagic, ffmpeg, misc" &
     pip install json5 numexpr
 
 RUN echo "!! Run a single fake frame to get the default model downloaded and baked into the image" && \
-    cd progrockdiffusion && \
-    python3 prd.py
+    python3 prd.py -s settings/validate.json
 
 # CMD /bin/bash

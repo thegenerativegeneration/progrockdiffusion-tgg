@@ -109,7 +109,7 @@ from PIL.PngImagePlugin import PngInfo
 import requests
 from glob import glob
 import json5 as json
-from types import NoneType, SimpleNamespace
+from types import SimpleNamespace
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -405,7 +405,7 @@ def is_json_key_present(json, key):
         buf = json[key]
     except KeyError:
         return False
-    if type(buf) == NoneType:
+    if type(buf) == type(None):
         return False
     return True
 
@@ -2896,7 +2896,7 @@ else:
 # that way both methods work.
 og_cut_ic_pow = cut_ic_pow # save this for the settings file later
 if type(cut_ic_pow) != str:
-    if type(cut_ic_pow_final) != NoneType:
+    if type(cut_ic_pow_final) != type(None):
         # building massive array of numbers because what other choice is there?
         new_cut_ic_pow = (f"[{cut_ic_pow}]*1+")
         for i in range(1, 1000):

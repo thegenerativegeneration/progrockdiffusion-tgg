@@ -109,7 +109,7 @@ from PIL.PngImagePlugin import PngInfo
 import requests
 from glob import glob
 import json5 as json
-from types import SimpleNamespace
+from types import NoneType, SimpleNamespace
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -119,10 +119,8 @@ from tqdm import tqdm
 sys.path.append(f'{root_path}/ResizeRight')
 sys.path.append(f'{root_path}/CLIP')
 sys.path.append(f'{root_path}/guided-diffusion')
-#sys.path.append(f'{root_path}/SLIP')
 import clip
 from resize_right import resize
-#from models import SLIP_VITB16, SLIP, SLIP_VITL16
 from guided_diffusion.script_util import create_model_and_diffusion, model_and_diffusion_defaults
 from datetime import datetime
 import numpy as np
@@ -182,12 +180,10 @@ RN50 = True
 RN50x4 = False
 RN50x16 = False
 RN50x64 = False
-#SLIPB16 = False
-#SLIPL16 = False
 cut_overview = "[12]*400+[4]*600"
 cut_innercut = "[4]*400+[12]*600"
 cut_ic_pow = 1
-cut_ic_pow_final = "None"
+cut_ic_pow_final = None
 cut_icgray_p = "[0.2]*400+[0]*600"
 key_frames = True
 angle = "0:(0)"
@@ -409,6 +405,8 @@ def is_json_key_present(json, key):
         buf = json[key]
     except KeyError:
         return False
+    if type(buf) == NoneType:
+        return False
     return True
 
 
@@ -547,10 +545,6 @@ for setting_arg in cl_args.settings:
                 RN50x16 = (settings_file['RN50x16'])
             if is_json_key_present(settings_file, 'RN50x64'):
                 RN50x64 = (settings_file['RN50x64'])
-#            if is_json_key_present(settings_file, 'SLIPB16'):
-#                SLIPB16 = (settings_file['SLIPB16'])
-#            if is_json_key_present(settings_file, 'SLIPL16'):
-#                SLIPL16 = (settings_file['SLIPL16'])
             if is_json_key_present(settings_file, 'cut_overview'):
                 cut_overview = (settings_file['cut_overview'])
             if is_json_key_present(settings_file, 'cut_innercut'):
@@ -560,9 +554,7 @@ for setting_arg in cl_args.settings:
                 if type(cut_ic_pow) != str:
                     cut_ic_pow = clampval(0.0, cut_ic_pow, 100)
             if is_json_key_present(settings_file, 'cut_ic_pow_final'):
-                cut_ic_pow_final = (settings_file['cut_ic_pow_final'])
-                if type(cut_ic_pow_final) is not str:
-                    cut_ic_pow_final = clampval(0.5, (settings_file['cut_ic_pow_final']), 100)
+                cut_ic_pow_final = clampval(0.5, (settings_file['cut_ic_pow_final']), 100)
             if is_json_key_present(settings_file, 'cut_icgray_p'):
                 cut_icgray_p = (settings_file['cut_icgray_p'])
             if is_json_key_present(settings_file, 'key_frames'):
@@ -1964,8 +1956,6 @@ def save_settings():
         'RN50x4': RN50x4,
         'RN50x16': RN50x16,
         'RN50x64': RN50x64,
-#        'SLIPB16': SLIPB16,
-#        'SLIPL16': SLIPL16,
         'cut_overview': str(cut_overview),
         'cut_innercut': str(cut_innercut),
         'cut_ic_pow': og_cut_ic_pow,
@@ -2191,24 +2181,9 @@ class SecondaryDiffusionImageNet2(nn.Module):
         eps = input * sigmas + v * alphas
         return DiffusionOutput(v, pred, eps)
 
-"""# 2. Diffusion and CLIP model settings"""
-
-#@markdown ####**Models Settings:**
-#diffusion_model = "512x512_diffusion_uncond_finetune_008100" #@param ["256x256_diffusion_uncond", "512x512_diffusion_uncond_finetune_008100"]
-#use_secondary_model = True #@param {type: 'boolean'}
 
 timestep_respacing = '50'  # param ['25','50','100','150','250','500','1000','ddim25','ddim50', 'ddim75', 'ddim100','ddim150','ddim250','ddim500','ddim1000']
-#diffusion_steps = 1000 # param {type: 'number'}
 use_checkpoint = True  #@param {type: 'boolean'}
-#ViTB32 = True #@param{type:"boolean"} Low RAM requirement, low accuracy
-#ViTB16 = True #@param{type:"boolean"} Low RAM requirement, medium accuracy
-#ViTL14 = False #@param{type:"boolean"} High RAM requirement, very high accuracy
-#RN101 = True #@param{type:"boolean"} Low RAM requirement, low accuracy
-#RN50 = True #@param{type:"boolean"} Low RAM requirement, medium accuracy
-#RN50x4 = True #@param{type:"boolean"} Medium RAM requirement, high accuracy
-#RN50x16 = False #@param{type:"boolean"} High RAM requirement, high accuracy
-#SLIPB16 = False # param{type:"boolean"}
-#SLIPL16 = False # param{type:"boolean"}
 other_sampling_mode = 'bicubic'
 #@markdown If you're having issues with model downloads, check this to compare SHA's:
 check_model_SHA = False  #@param{type:"boolean"}
@@ -2571,41 +2546,7 @@ if RN101 is True:
                   jit=False,
                   device=device)[0].eval().requires_grad_(False))
 
-"""
-if SLIPB16:
-    SLIPB16model = SLIP_VITB16(ssl_mlp_dim=4096, ssl_emb_dim=256)
-    if not os.path.exists(f'{model_path}/slip_base_100ep.pt'):
-        #!wget https://dl.fbaipublicfiles.com/slip/slip_base_100ep.pt -P {model_path}
-        urllib.request.urlretrieve(
-            "https://dl.fbaipublicfiles.com/slip/slip_base_100ep.pt",
-            model_path)
-    sd = torch.load(f'{model_path}/slip_base_100ep.pt')
-    real_sd = {}
-    for k, v in sd['state_dict'].items():
-        real_sd['.'.join(k.split('.')[1:])] = v
-    del sd
-    SLIPB16model.load_state_dict(real_sd)
-    SLIPB16model.requires_grad_(False).eval().to(device)
 
-    clip_models.append(SLIPB16model)
-
-if SLIPL16:
-    SLIPL16model = SLIP_VITL16(ssl_mlp_dim=4096, ssl_emb_dim=256)
-    if not os.path.exists(f'{model_path}/slip_large_100ep.pt'):
-        #!wget https://dl.fbaipublicfiles.com/slip/slip_large_100ep.pt -P {model_path}
-        urllib.request.urlretrieve(
-            "https://dl.fbaipublicfiles.com/slip/slip_large_100ep.pt",
-            model_path)
-    sd = torch.load(f'{model_path}/slip_large_100ep.pt')
-    real_sd = {}
-    for k, v in sd['state_dict'].items():
-        real_sd['.'.join(k.split('.')[1:])] = v
-    del sd
-    SLIPL16model.load_state_dict(real_sd)
-    SLIPL16model.requires_grad_(False).eval().to(device)
-
-    clip_models.append(SLIPL16model)
-"""
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])
 lpips_model = lpips.LPIPS(net='vgg').to(device)

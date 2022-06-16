@@ -1454,7 +1454,6 @@ def do_run():
                         skip_augs=skip_augs)
                     for prompt in image_prompt:
                         path, weight = parse_prompt(prompt, {'s': s})
-                        weight *= magnitude_multiplier
                         img = Image.open(fetch(path)).convert('RGB')
                         img = TF.resize(img, min(side_x, side_y, *img.size),
                                         T.InterpolationMode.LANCZOS)

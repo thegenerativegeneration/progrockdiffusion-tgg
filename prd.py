@@ -55,6 +55,8 @@ import os
 from os import path
 from pickle import FALSE
 import shutil
+import logging
+import argparse
 
 from attr import has
 root_path = os.getcwd()
@@ -110,6 +112,7 @@ import requests
 from glob import glob
 import json5 as json
 from types import SimpleNamespace
+from typing import Text, List, Union
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -224,179 +227,234 @@ symm_loss_scale =  161803
 symm_switch = 45
 
 # Command Line parse
-import argparse
-example_text = f'''Usage examples:
 
-To simply use the 'Default' output directory and get settings from settings.json:
- {python_example} prd.py
+def parse_args():
+    example_text = f'''Usage examples:
 
-To use your own settings.json (note that putting it in quotes can help parse errors):
- {python_example} prd.py -s "some_directory/mysettings.json"
+    To simply use the 'Default' output directory and get settings from settings.json:
+     {python_example} prd.py
 
-Note that multiple settings files are allowed. They're parsed in order. The values present are applied over any previous value:
- {python_example} prd.py -s "some_directory/mysettings.json" -s "highres.json"
+    To use your own settings.json (note that putting it in quotes can help parse errors):
+     {python_example} prd.py -s "some_directory/mysettings.json"
 
-To use the 'Default' output directory and settings, but override the output name and prompt:
- {python_example} prd.py -p "A cool image of the author of this program" -o Coolguy
+    Note that multiple settings files are allowed. They're parsed in order. The values present are applied over any previous value:
+     {python_example} prd.py -s "some_directory/mysettings.json" -s "highres.json"
 
-To use multiple prompts with optional weight values:
- {python_example} prd.py -p "A cool image of the author of this program" -p "Pale Blue Sky:.5"
+    To use the 'Default' output directory and settings, but override the output name and prompt:
+     {python_example} prd.py -p "A cool image of the author of this program" -o Coolguy
 
-You can ignore the seed coming from a settings file by adding -i, resulting in a new random seed
+    To use multiple prompts with optional weight values:
+     {python_example} prd.py -p "A cool image of the author of this program" -p "Pale Blue Sky:.5"
 
-To force use of the CPU for image generation, add a -c or --cpu with how many threads to use (warning: VERY slow):
- {python_example} prd.py -c 16
+    You can ignore the seed coming from a settings file by adding -i, resulting in a new random seed
 
-To generate a checkpoint image at 20% steps, for use as an init image in future runs, add -g or --geninit:
- {python_example} prd.py -g
+    To force use of the CPU for image generation, add a -c or --cpu with how many threads to use (warning: VERY slow):
+     {python_example} prd.py -c 16
 
-To use a checkpoint image at 20% steps add -u or --useinit:
- {python_example} prd.py -u
+    To generate a checkpoint image at 20% steps, for use as an init image in future runs, add -g or --geninit:
+     {python_example} prd.py -g
 
-To specify which CUDA device to use (advanced) by device ID (default is 0):
- {python_example} prd.py --cuda 1
+    To use a checkpoint image at 20% steps add -u or --useinit:
+     {python_example} prd.py -u
 
-To HIDE the settings that get added to your output PNG's metadata, use:
- {python_example} prd.py --hidemetadata
+    To specify which CUDA device to use (advanced) by device ID (default is 0):
+     {python_example} prd.py --cuda 1
 
-To increase resolution 2x by splitting the final image and re-rendering detail in the sections, use:
- {python_example} prd.py --gobig
+    To HIDE the settings that get added to your output PNG's metadata, use:
+     {python_example} prd.py --hidemetadata
 
-To increase resolution 2x on an existing output, make sure to supply proper settings, then use:
- {python_example} prd.py --gobig --gobiginit "some_directory/image.png"
+    To increase resolution 2x by splitting the final image and re-rendering detail in the sections, use:
+     {python_example} prd.py --gobig
 
-If you already upscaled your gobiginit image, you can skip the resizing process. Provide the scaling factor used:
- {python_example} prd.py --gobig --gobiginit "some_directory/image.png" --gobiginit_scaled 2
+    To increase resolution 2x on an existing output, make sure to supply proper settings, then use:
+     {python_example} prd.py --gobig --gobiginit "some_directory/image.png"
 
-Alternative scaling method is to use ESRGAN (note: RealESRGAN must be installed and in your path):
- {python_example} prd.py --esrgan
-More information on instlaling it is here: https://github.com/xinntao/Real-ESRGAN
-'''
+    If you already upscaled your gobiginit image, you can skip the resizing process. Provide the scaling factor used:
+     {python_example} prd.py --gobig --gobiginit "some_directory/image.png" --gobiginit_scaled 2
 
-my_parser = argparse.ArgumentParser(
-    prog='ProgRockDiffusion',
-    description='Generate images from text prompts.',
-    epilog=example_text,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
+    Alternative scaling method is to use ESRGAN (note: RealESRGAN must be installed and in your path):
+     {python_example} prd.py --esrgan
+    More information on instlaling it is here: https://github.com/xinntao/Real-ESRGAN
+    '''
 
-my_parser.add_argument('--gui',
-                       action='store_true',
-                       required=False,
-                       help='Use the PyQt5 GUI')
+    my_parser = argparse.ArgumentParser(
+        prog='ProgRockDiffusion',
+        description='Generate images from text prompts.',
+        epilog=example_text,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
 
-my_parser.add_argument(
-    '-s',
-    '--settings',
-    action='append',
-    required=False,
-    default=['settings.json'],
-    help=
-    'A settings JSON file to use, best to put in quotes. Multiples are allowed and layered in order.'
-)
+    my_parser.add_argument('--gui',
+                           action='store_true',
+                           required=False,
+                           help='Use the PyQt5 GUI')
 
-my_parser.add_argument('-o',
-                       '--output',
-                       action='store',
-                       required=False,
-                       help='What output directory to use within images_out')
+    my_parser.add_argument(
+        '-s',
+        '--settings',
+        action='append',
+        required=False,
+        default=['settings.json'],
+        help=
+        'A settings JSON file to use, best to put in quotes. Multiples are allowed and layered in order.'
+    )
 
-my_parser.add_argument('-p',
-                       '--prompt',
-                       action='append',
-                       required=False,
-                       help='Override the prompt')
+    my_parser.add_argument('-o',
+                           '--output',
+                           action='store',
+                           required=False,
+                           help='What output directory to use within images_out')
 
-my_parser.add_argument('-i',
-                       '--ignoreseed',
-                       action='store_true',
-                       required=False,
-                       help='Ignores the random seed in the settings file')
+    my_parser.add_argument('-p',
+                           '--prompt',
+                           action='append',
+                           required=False,
+                           help='Override the prompt')
 
-my_parser.add_argument(
-    '-c',
-    '--cpu',
-    type=int,
-    nargs='?',
-    action='store',
-    required=False,
-    default=False,
-    const=0,
-    help='Force use of CPU instead of GPU, and how many threads to run')
+    my_parser.add_argument('-i',
+                           '--ignoreseed',
+                           action='store_true',
+                           required=False,
+                           help='Ignores the random seed in the settings file')
 
-my_parser.add_argument(
-    '-g',
-    '--geninit',
-    type=int,
-    nargs='?',
-    action='store',
-    required=False,
-    default=False,
-    const=20,
-    help=
-    'Save a partial image at the specified percent of steps (1 to 99), for use as later init image'
-)
-my_parser.add_argument('-u',
-                       '--useinit',
-                       action='store_true',
-                       required=False,
-                       default=False,
-                       help='Use the specified init image')
+    my_parser.add_argument(
+        '-c',
+        '--cpu',
+        type=int,
+        nargs='?',
+        action='store',
+        required=False,
+        default=False,
+        const=0,
+        help='Force use of CPU instead of GPU, and how many threads to run')
 
-my_parser.add_argument('--cuda',
-                       action='store',
-                       required=False,
-                       default='0',
-                       help='Which GPU to use. Default is 0.')
+    my_parser.add_argument(
+        '-g',
+        '--geninit',
+        type=int,
+        nargs='?',
+        action='store',
+        required=False,
+        default=False,
+        const=20,
+        help=
+        'Save a partial image at the specified percent of steps (1 to 99), for use as later init image'
+    )
+    my_parser.add_argument('-u',
+                           '--useinit',
+                           action='store_true',
+                           required=False,
+                           default=False,
+                           help='Use the specified init image')
 
-my_parser.add_argument(
-    '--hidemetadata',
-    action='store_true',
-    required=False,
-    help='Will prevent settings from being added to the output PNG file')
+    my_parser.add_argument('--cuda',
+                           action='store',
+                           required=False,
+                           default='0',
+                           help='Which GPU to use. Default is 0.')
 
-my_parser.add_argument(
-    '--gobig',
-    action='store_true',
-    required=False,
-    help='After generation, the image is split into sections and re-rendered, to double the size.')
+    my_parser.add_argument(
+        '--hidemetadata',
+        action='store_true',
+        required=False,
+        help='Will prevent settings from being added to the output PNG file')
 
-my_parser.add_argument(
-    '--gobiginit',
-    action='store',
-    required=False,
-    help=
-    'An image to use to kick off GO BIG mode, skipping the initial render.'
-)
+    my_parser.add_argument(
+        '--gobig',
+        action='store_true',
+        required=False,
+        help='After generation, the image is split into sections and re-rendered, to double the size.')
 
-my_parser.add_argument(
-    '--gobiginit_scaled',
-    type=int,
-    nargs='?',
-    action='store',
-    required=False,
-    default=False,
-    const=2,
-    help=
-    'If you already scaled your gobiginit image, add this option along with the multiplier used (default 2)'
-)
+    my_parser.add_argument(
+        '--gobiginit',
+        action='store',
+        required=False,
+        help=
+        'An image to use to kick off GO BIG mode, skipping the initial render.'
+    )
 
-my_parser.add_argument(
-    '--esrgan',
-    action='store_true',
-    required=False,
-    help=
-    'Resize your output with ESRGAN (realesrgan-ncnn-vulkan must be in your path).'
-)
+    my_parser.add_argument(
+        '--gobiginit_scaled',
+        type=int,
+        nargs='?',
+        action='store',
+        required=False,
+        default=False,
+        const=2,
+        help=
+        'If you already scaled your gobiginit image, add this option along with the multiplier used (default 2)'
+    )
 
-my_parser.add_argument(
-    '--skip_checks',
-    action='store_true',
-    required=False,
-    default=False,
-    help=
-    'Do not check values to make sure they are sensible.'
-)
-cl_args = my_parser.parse_args()
+    my_parser.add_argument(
+        '--esrgan',
+        action='store_true',
+        required=False,
+        help=
+        'Resize your output with ESRGAN (realesrgan-ncnn-vulkan must be in your path).'
+    )
+
+    my_parser.add_argument(
+        '--skip_checks',
+        action='store_true',
+        required=False,
+        default=False,
+        help=
+        'Do not check values to make sure they are sensible.'
+    )
+
+    my_parser.add_argument(
+        '--log_level',
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Specify the log level. (default: 'INFO')"
+    )
+
+    return my_parser.parse_args()
+
+cl_args = parse_args()
+
+
+## Configure logging
+numeric_log_level = numeric_level = getattr(logging, cl_args.log_level, None)
+if not isinstance(numeric_level, int):
+    raise ValueError(f"Invalid log level: {cl_args.log_level}")
+logging.basicConfig(level=numeric_level)
+logger = logging.getLogger(__name__)
+
+
+def format_bytes(num: Union[int, float], metric: bool = False, precision: int = 1) -> str:
+    """
+    Human-readable formatting of bytes, using binary (powers of 1024)
+    or metric (powers of 1000) representation.
+    """
+
+    # When this is moved to a separate submodule, we can move these constants
+    # to the module scope so they only have to be declared once.
+    METRIC_LABELS: List[str] = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+    BINARY_LABELS: List[str] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"]
+    PRECISION_OFFSETS: List[float] = [0.5, 0.05, 0.005, 0.0005]
+    PRECISION_FORMATS: List[str] = ["{}{:.0f} {}", "{}{:.1f} {}", "{}{:.2f} {}",
+                                    "{}{:.3f} {}"]
+
+    assert isinstance(num, (int, float)), "num must be an int or float"
+    assert isinstance(metric, bool), "metric must be a bool"
+    assert isinstance(precision, int) and precision >= 0 and precision <= 3, "precision must be an int (range 0-3)"
+
+    unit_labels = METRIC_LABELS if metric else BINARY_LABELS
+    last_label = unit_labels[-1]
+    unit_step = 1000 if metric else 1024
+    unit_step_thresh = unit_step - PRECISION_OFFSETS[precision]
+
+    is_negative = num < 0
+    if is_negative: # Faster than ternary assignment or always running abs().
+        num = abs(num)
+
+    for unit in unit_labels:
+        if num < unit_step_thresh:
+            break
+        if unit != last_label:
+            num /= unit_step
+
+    return PRECISION_FORMATS[precision].format("-" if is_negative else "", num, unit)
 
 
 # Simple check to see if a key is present in the settings file
@@ -2481,74 +2539,87 @@ elif diffusion_model == 'pixel_art_diffusion_soft_256':
 
 model_default = model_config['image_size']
 
-if use_secondary_model:
+
+def load_secondary_model():
+    memory_allocated = torch.cuda.memory_allocated(device)
+    logger.debug(f"Memory currently allocated: {format_bytes(memory_allocated)}")
+    logger.debug(f"Loading secondary model")
     secondary_model = SecondaryDiffusionImageNet2()
     secondary_model.load_state_dict(
         torch.load(f'{model_path}/secondary_model_imagenet_2.pth',
                    map_location='cpu'))
     secondary_model.eval().requires_grad_(False).to(device)
+    logger.debug(f"Loaded secondary model. Used: {format_bytes(torch.cuda.memory_allocated(device) - memory_allocated)}.")
+    logger.debug(f"Total memory used: {format_bytes(torch.cuda.memory_allocated(device))}.")
+    return secondary_model
+
+
+def load_clip_model(model_name: Text):
+    logger.debug(f"Loading {model_name} model")
+    memory_allocated = torch.cuda.memory_allocated(device)
+    loaded_model = clip.load(model_name,
+                             jit=False,
+                             device=device)[0].eval().requires_grad_(False)
+    logger.debug(f"Loaded {model_name}. Used: {format_bytes(torch.cuda.memory_allocated(device) - memory_allocated)}.")
+    logger.debug(f"Total memory allocated: {format_bytes(torch.cuda.memory_allocated(device))}.")
+    return loaded_model
+
+
+def load_lpips_model(net: str = 'vgg'):
+    logger.debug(f"Loading LPIPS model")
+    memory_allocated = torch.cuda.memory_allocated(device)
+    lpips_model = lpips.LPIPS(net=net).to(device)
+    logger.debug(f"Loaded LPIPS model. Used: {format_bytes(torch.cuda.memory_allocated(device) - memory_allocated)}.")
+    logger.debug(f"Total memory allocated: {format_bytes(torch.cuda.memory_allocated(device))}.")
+    return lpips_model
+
+
+if use_secondary_model:
+    secondary_model = load_secondary_model()
 
 clip_models = []
 clip_modelname = []
+
 if ViTB32 is True:
     clip_modelname.append('ViTB32')
-    clip_models.append(
-        clip.load('ViT-B/32',
-                  jit=False,
-                  device=device)[0].eval().requires_grad_(False))
+    clip_models.append(load_clip_model('ViT-B/32'))
+
 if ViTB16 is True:
     clip_modelname.append('ViTB16')
-    clip_models.append(
-        clip.load('ViT-B/16',
-                  jit=False,
-                  device=device)[0].eval().requires_grad_(False))
+    clip_models.append(load_clip_model('ViT-B/16'))
+
 if ViTL14 is True:
     clip_modelname.append('ViTL14')
-    clip_models.append(
-        clip.load('ViT-L/14',
-                  jit=False,
-                  device=device)[0].eval().requires_grad_(False))
+    clip_models.append(load_clip_model('ViT-L/14'))
+
 if ViTL14_336 is True:
     clip_modelname.append('ViTL14_336')
-    clip_models.append(
-        clip.load('ViT-L/14@336px',
-                  jit=False,
-                  device=device)[0].eval().requires_grad_(False))
+    clip_models.append(load_clip_model('ViT-L/14@336px'))
+
 if RN50 is True:
     clip_modelname.append('RN50')
-    clip_models.append(
-        clip.load('RN50',
-                  jit=False,
-                  device=device)[0].eval().requires_grad_(False))
+    clip_models.append(load_clip_model('RN50'))
+
 if RN50x4 is True:
     clip_modelname.append('RN50x4')
-    clip_models.append(
-        clip.load('RN50x4',
-                  jit=False,
-                  device=device)[0].eval().requires_grad_(False))
+    clip_models.append(load_clip_model('RN50x4'))
+
 if RN50x16 is True:
     clip_modelname.append('RN50x16')
-    clip_models.append(
-        clip.load('RN50x16',
-                  jit=False,
-                  device=device)[0].eval().requires_grad_(False))
+    clip_models.append(load_clip_model('RN50x16'))
+
 if RN50x64 is True:
     clip_modelname.append('RN50x64')
-    clip_models.append(
-        clip.load('RN50x64',
-                  jit=False,
-                  device=device)[0].eval().requires_grad_(False))
+    clip_models.append(load_clip_model('RN50x64'))
+
 if RN101 is True:
     clip_modelname.append('RN101')
-    clip_models.append(
-        clip.load('RN101',
-                  jit=False,
-                  device=device)[0].eval().requires_grad_(False))
-
+    clip_models.append(load_clip_model('RN101'))
 
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])
-lpips_model = lpips.LPIPS(net='vgg').to(device)
+
+lpips_model = load_lpips_model()
 
 #Get corrected sizes
 side_x = (width_height[0] // 64) * 64

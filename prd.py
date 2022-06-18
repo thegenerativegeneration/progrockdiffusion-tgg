@@ -420,7 +420,6 @@ if not isinstance(numeric_level, int):
 logging.basicConfig(level=numeric_level)
 logger = logging.getLogger(__name__)
 
-
 def format_bytes(num: Union[int, float], metric: bool = False, precision: int = 1) -> str:
     """
     Human-readable formatting of bytes, using binary (powers of 1024)
@@ -1269,16 +1268,22 @@ class MakeCutoutsDango(nn.Module):
                           **padargs)
         cutout = resize(pad_input, out_shape=output_shape)
 
+        # create a list of 1 to 4 in random order, then do the matching overview cut
+        # This way even with less than 4 overview cuts, you still get a mix of all of them   
         if self.Overview > 0:
             if self.Overview <= 4:
-                if self.Overview >= 1:
-                    cutouts.append(cutout)
-                if self.Overview >= 2:
-                    cutouts.append(gray(cutout))
-                if self.Overview >= 3:
-                    cutouts.append(TF.hflip(cutout))
-                if self.Overview == 4:
-                    cutouts.append(gray(TF.hflip(cutout)))
+                li = [1, 1, 2, 3, 4] # give a slight edge to the normal, full color cut
+                ri = random.sample(li,self.Overview)
+                ri.sort()
+                for i in range(self.Overview):
+                    if ri[i] == 1:
+                        cutouts.append(cutout)
+                    if ri[i] == 2:
+                        cutouts.append(gray(cutout))
+                    if ri[i] == 3:
+                        cutouts.append(TF.hflip(cutout))
+                    if ri[i] == 4:
+                        cutouts.append(gray(TF.hflip(cutout)))
             else:
                 cutout = resize(pad_input, out_shape=output_shape)
                 for _ in range(self.Overview):

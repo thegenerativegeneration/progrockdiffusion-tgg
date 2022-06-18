@@ -153,7 +153,7 @@ interp_spline = "Linear"
 init_image = None
 init_scale = 1000
 skip_steps = 0
-skip_steps_ratio = 0.3
+skip_steps_ratio = 0.0
 frames_scale = 1500
 frames_skip_steps = "60%"
 perlin_init = False
@@ -788,7 +788,7 @@ if cl_args.geninit:
 else:
     geninit = False
 
-if skip_steps == 0 and init_image is not None:
+if skip_steps == 0 and ((init_image is not None) or (perlin_init == True)):
     if 0 < skip_steps_ratio <= 1:
         skip_steps = (int(steps * skip_steps_ratio))
     else:

@@ -185,7 +185,7 @@ RN50x16 = False
 RN50x64 = False
 cut_overview = "[12]*400+[4]*600"
 cut_innercut = "[4]*400+[12]*600"
-cut_ic_pow = 1
+cut_ic_pow = "[1]*500+[10]*500"
 cut_ic_pow_final = None
 cut_icgray_p = "[0.2]*400+[0]*600"
 smooth_schedules = False
@@ -478,6 +478,8 @@ def clampval(minval, val, maxval):
         return val
     #Auto is handled later, so we just return it back as is
     elif val == "auto":
+        return val
+    elif type(val) == str:
         return val
     elif val < minval and not cl_args.skip_checks:
         val = minval
@@ -820,6 +822,19 @@ if cl_args.useinit:
 else:
     useinit = False
 
+def num_to_schedule(input, final=-9999):
+    # take a single number and turn it into a string-style schedule, with support for interpolated
+    if final != -9999:
+        output = (f"[{input}]*1+")
+        for i in range(1, 1000):
+            percent_done = i / 1000
+            val = val_interpolate(1, input, 1000, final, i)
+            output = output + (f"[{val}]*1+")
+        output = output[:-1] # remove the final plus character
+    else:
+        output = (f'[{input}]*1000')
+    return(output)
+
 #Automatic Eta based on steps
 if eta == 'auto':
     maxetasteps = 315
@@ -844,7 +859,11 @@ if clamp_max == 'auto':
     elif steps <= 300: clamp_max = 0.05
     elif steps <= 500: clamp_max = 0.075
     else: clamp_max = 0.1
+    clamp_max = num_to_schedule(clamp_max)
     print(f'Clamp_max automatically set to {clamp_max}')
+elif type(clamp_max) != str:
+    clamp_max = num_to_schedule(clamp_max)
+    print(f'Converted clamp_max to schedule, new value is: {clamp_max}')
 
 #Automatic clip_guidance_scale based on overall resolution
 if clip_guidance_scale == 'auto':
@@ -861,6 +880,7 @@ if clip_guidance_scale == 'auto':
         clip_guidance_scale = ((
             (res - mincgsres) * newrange) / resrange) + mincgs
         clip_guidance_scale = round(clip_guidance_scale)
+    clip_guidance_scale = num_to_schedule(clip_guidance_scale)
     print(f'clip_guidance_scale set automatically to: {clip_guidance_scale}')
 
 if cl_args.prompt:
@@ -1018,18 +1038,21 @@ def smooth_jazz(schedule):
             markers.append(i)
         last_num = current_num
     # now smooth out the surrounding numbers for any markers we have
+    lastindex = 0
     if len(markers) > 0:
         for index in markers:
-            start = int(index - (zone / 2))
-            if start < 1:
-                start = 1 # make sure we stay within the range of the array
-            end = int(index + (zone / 2))
-            if end > len(schedule):
-                end = len(schedule) # make sure we stay within the range of the array
-            i = start
-            while i < end:
-                newschedule[i] = val_interpolate(start, schedule[start], end, schedule[end], i)
-                i += 1
+            if (index - lastindex) >= (zone / 2): # only smooth if the indexes are far enough apart
+                start = int(index - (zone / 2))
+                if start < 1:
+                    start = 1 # make sure we stay within the range of the array
+                end = int(index + (zone / 2))
+                if end > len(schedule):
+                    end = len(schedule) # make sure we stay within the range of the array
+                i = start
+                while i < end:
+                    newschedule[i] = val_interpolate(start, schedule[start], end, schedule[end], i)
+                    i += 1
+            lastindex = index
     return(newschedule)
 
 def perlin(width, height, scale=10, device=None):
@@ -1382,9 +1405,14 @@ actual_total_steps = steps
 actual_run_steps = 0
 
 def do_run():
+    # Smooth out them tasty schedules if the user wills it so...
     if args.smooth_schedules == True:
         args.cut_overview = smooth_jazz(args.cut_overview)
         args.cut_innercut = smooth_jazz(args.cut_innercut)
+        args.cut_ic_pow = smooth_jazz(args.cut_ic_pow)
+        args.clip_guidance_scale = smooth_jazz(args.clip_guidance_scale)
+        args.clamp_max = smooth_jazz(args.clamp_max)
+
     seed = args.seed
     for frame_num in range(args.start_frame, args.max_frames):
         if stop_on_next_loop:
@@ -1686,7 +1714,7 @@ def do_run():
                         loss_values.append(losses.sum().item(
                         ))  # log loss, probably shouldn't do per cutn_batch
                         x_in_grad += torch.autograd.grad(
-                            losses.sum() * clip_guidance_scale,
+                            losses.sum() * args.clip_guidance_scale[1000 - t_int],
                             x_in)[0] / cutn_batches
                 tv_losses = tv_loss(x_in)
                 if use_secondary_model is True:
@@ -1714,24 +1742,21 @@ def do_run():
                     grad = torch.zeros_like(x)
             if args.clamp_grad and x_is_NaN == False:
                 magnitude = grad.square().mean().sqrt()
-                timestep = (1000 - t.item()) / 1000
-                clamp_max = 0
 
-                # save_tensor_as_image(grad, "grad.png")
-                #image_data = grad.data.cpu().numpy()
-                #plt.imshow(image_data, cmap = "gray")
-                #plt.savefig("test.png", bbox_inches = "tight", pad_inches = 0.0)
+                # # save_tensor_as_image(grad, "grad.png")
+                # #image_data = grad.data.cpu().numpy()
+                # #plt.imshow(image_data, cmap = "gray")
+                # #plt.savefig("test.png", bbox_inches = "tight", pad_inches = 0.0)
 
-                if isinstance(args.clamp_max, list):
-                    clamp_max = ease(args.clamp_max, timestep)
-                elif isinstance(args.clamp_max, str):
-                    clamp_max = float(numexpr.evaluate(args.clamp_max))
-                else:
-                    clamp_max = args.clamp_max
+                # if isinstance(args.clamp_max, list):
+                #     clamp_max = ease(args.clamp_max, timestep)
+                # elif isinstance(args.clamp_max, str):
+                #     clamp_max = float(numexpr.evaluate(args.clamp_max))
+                # else:
 
                 return grad * magnitude.clamp(
-                    max=args.clamp_max
-                ) / magnitude  #min=-0.02, min=-clamp_max,
+                    max=args.clamp_max[1000 - t_int]
+                ) / magnitude
             return grad
 
         if args.sampling_mode == 'ddim':
@@ -1859,7 +1884,7 @@ def do_run():
                                     metadata.add_text("cut_innercut",
                                                       str(cut_innercut))
                                     metadata.add_text("cut_ic_pow",
-                                                      str(cut_ic_pow))
+                                                      str(og_cut_ic_pow))
 
                                 if actual_run_steps % args.display_rate == 0 or actual_run_steps == 1 or cur_t == -1:
                                     if cl_args.cuda != '0':
@@ -2994,22 +3019,16 @@ if set_seed == 'random_seed':
 else:
     seed = int(set_seed)
 
-# convert old school cut_ic_pow values into array style, including when interpolation is being used
-# This will create a string that resembles the cut_overview scheduling method, in the event the user just supplies a simple number,
-# that way both methods work.
-og_cut_ic_pow = cut_ic_pow # save this for the settings file later
+# convert old number-style settings to new scheduled settings
+og_cut_ic_pow = cut_ic_pow
 if type(cut_ic_pow) != str:
     if type(cut_ic_pow_final) != type(None):
-        # building massive array of numbers because what other choice is there?
-        new_cut_ic_pow = (f"[{cut_ic_pow}]*1+")
-        for i in range(1, 1000):
-            percent_done = i / 1000
-            val = round(val_interpolate(1, cut_ic_pow, 1000, cut_ic_pow_final, i),1)
-            new_cut_ic_pow = new_cut_ic_pow + (f"[{val}]*1+")
-        new_cut_ic_pow = new_cut_ic_pow[:-1] # remove the final plus character
+        cut_ic_pow = num_to_schedule(cut_ic_pow, cut_ic_pow_final)
     else:
-        new_cut_ic_pow = (f'[{cut_ic_pow}]*1000')
-    cut_ic_pow = new_cut_ic_pow
+        cut_ic_pow = num_to_schedule(cut_ic_pow)
+
+if type(clip_guidance_scale) != str:
+    clip_guidance_scale = num_to_schedule(clip_guidance_scale)
 
 print(f'Using seed {seed}')
 
@@ -3028,7 +3047,7 @@ args = {
     'steps': steps,
     'sampling_mode': sampling_mode,
     'width_height': width_height,
-    'clip_guidance_scale': clip_guidance_scale,
+    'clip_guidance_scale': eval(clip_guidance_scale),
     'tv_scale': tv_scale,
     'range_scale': range_scale,
     'sat_scale': sat_scale,
@@ -3077,7 +3096,7 @@ args = {
     'set_seed': set_seed,
     'eta': eta,
     'clamp_grad': clamp_grad,
-    'clamp_max': clamp_max,
+    'clamp_max': eval(clamp_max),
     'skip_augs': skip_augs,
     'randomize_class': randomize_class,
     'clip_denoised': clip_denoised,

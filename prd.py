@@ -188,6 +188,7 @@ cut_innercut = "[4]*400+[12]*600"
 cut_ic_pow = 1
 cut_ic_pow_final = None
 cut_icgray_p = "[0.2]*400+[0]*600"
+smooth_schedules = False
 key_frames = True
 angle = "0:(0)"
 zoom = "0: (1), 10: (1.05)"
@@ -223,7 +224,7 @@ gobig_orientation = "vertical"
 gobig_scale = 2
 symmetry_loss_v = False
 symmetry_loss_h = False
-symm_loss_scale =  161803
+symm_loss_scale =  2400
 symm_switch = 45
 
 # Command Line parse
@@ -614,6 +615,8 @@ for setting_arg in cl_args.settings:
                 cut_ic_pow_final = clampval(0.5, (settings_file['cut_ic_pow_final']), 100)
             if is_json_key_present(settings_file, 'cut_icgray_p'):
                 cut_icgray_p = (settings_file['cut_icgray_p'])
+            if is_json_key_present(settings_file, 'smooth_schedules'):
+                smooth_schedules = (settings_file['smooth_schedules'])
             if is_json_key_present(settings_file, 'key_frames'):
                 key_frames = (settings_file['key_frames'])
             if is_json_key_present(settings_file, 'angle'):
@@ -993,12 +996,41 @@ def ease(num, t):
 def interp(t):
     return 3 * t**2 - 2 * t**3
 
-# return a number between two numbers in a given range
 def val_interpolate(x1, y1, x2, y2, x):
-    """Perform linear interpolation for x between (x1,y1) and (x2,y2) """
+    #Linear interpolation. Return y between y1 and y2 for the same position x is bettewen x1 and x2 
     d = [[x1, y1],[x2, y2]]
     output = d[0][1] + (x - d[0][0]) * ((d[1][1] - d[0][1])/(d[1][0] - d[0][0]))
+    if type(y1) == int:
+        output = int(output) # return the proper type
     return(output)
+
+def smooth_jazz(schedule):
+    # Take a list of numbers (i.e. an already-evaluated schedule),
+    # find the places where the number changes from one to the next, and smooth those transitions
+    newschedule = schedule
+    zone = int(len(schedule) * .05) # We want to smooth a transition for 50 steps in a 1000 step scenario
+    markers = []
+    last_num = schedule[0]
+    # build a list of indicies of where the number changes
+    for i in range(1, len(schedule)):
+        current_num = schedule[i]
+        if current_num != last_num:
+            markers.append(i)
+        last_num = current_num
+    # now smooth out the surrounding numbers for any markers we have
+    if len(markers) > 0:
+        for index in markers:
+            start = int(index - (zone / 2))
+            if start < 1:
+                start = 1 # make sure we stay within the range of the array
+            end = int(index + (zone / 2))
+            if end > len(schedule):
+                end = len(schedule) # make sure we stay within the range of the array
+            i = start
+            while i < end:
+                newschedule[i] = val_interpolate(start, schedule[start], end, schedule[end], i)
+                i += 1
+    return(newschedule)
 
 def perlin(width, height, scale=10, device=None):
     gx, gy = torch.randn(2, width + 1, height + 1, 1, 1, device=device)
@@ -1350,20 +1382,15 @@ actual_total_steps = steps
 actual_run_steps = 0
 
 def do_run():
+    if args.smooth_schedules == True:
+        args.cut_overview = smooth_jazz(args.cut_overview)
+        args.cut_innercut = smooth_jazz(args.cut_innercut)
     seed = args.seed
-    #print(range(args.start_frame, args.max_frames))
     for frame_num in range(args.start_frame, args.max_frames):
         if stop_on_next_loop:
             break
 
         display.clear_output(wait=True)
-
-        # Print Frame progress if animation mode is on
-        #print(f'Animation mode is {animation_mode}') #debug
-        # if args.animation_mode != "None":
-        #     batchBar = tqdm(range(args.max_frames), desc="Frames")
-        #     batchBar.n = frame_num
-        #     batchBar.refresh()
 
         # Inits if not video frames
         if args.animation_mode != "Video Input":
@@ -2023,6 +2050,7 @@ def save_settings():
         'cut_ic_pow': og_cut_ic_pow,
         'cut_ic_pow_final': cut_ic_pow_final,
         'cut_icgray_p': str(cut_icgray_p),
+        'smooth_schedules': smooth_schedules,
         'animation_mode': animation_mode,
         'key_frames': key_frames,
         'angle': angle,
@@ -2976,7 +3004,7 @@ if type(cut_ic_pow) != str:
         new_cut_ic_pow = (f"[{cut_ic_pow}]*1+")
         for i in range(1, 1000):
             percent_done = i / 1000
-            val = int(val_interpolate(1, int(cut_ic_pow), 1000, int(cut_ic_pow_final), i))
+            val = round(val_interpolate(1, cut_ic_pow, 1000, cut_ic_pow_final, i),1)
             new_cut_ic_pow = new_cut_ic_pow + (f"[{val}]*1+")
         new_cut_ic_pow = new_cut_ic_pow[:-1] # remove the final plus character
     else:
@@ -3060,6 +3088,7 @@ args = {
     'symmetry_loss_h': symmetry_loss_h,
     'sloss_scale':symm_loss_scale,
     'symm_switch':symm_switch,
+    'smooth_schedules': smooth_schedules,
 }
 
 args = SimpleNamespace(**args)

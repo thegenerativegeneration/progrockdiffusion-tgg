@@ -54,6 +54,7 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **cut_ic_pow** | 1 | A higher number can add more detail, but may create unwanted fine lines (value range: 0.0 to 100). NOTE: Can be scheduled like cut_overview instead (in which case cut_ic_pow_final is ignored)
 | **cut_ic_pow_final** | "None" |If set, image will start at cut_ic_pow and continue toward cut_ic_pow_final by the end, unless cut_ic_pow is a schedule
 | **cut_icgray_p** | "[0.2]\*400+[0]\*600" | Percent of cuts to do as grayscale, which evidently can help add detail
+| **smooth_schedules** | false | When true, will smooth the transitions within cut_overview and cut_innercut schedules
 | **gobig_orientation** | "vertical" | Which direction to do slices for gobig mode. Options are vertical or horizontal, but vertical is best in most cases
 | **animation_mode** | None | Animation mode. Options are "None", "2D", "Video Input" - CAPS MATTER
 | **key_frames** | true | Animation stuff...

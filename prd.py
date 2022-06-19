@@ -1689,6 +1689,8 @@ def do_run():
                     temp_cutn_batches = args.cutn_batches
                     if type(args.cutn_batches_final) is int:
                         # interpolate value if we have a range of cutn_batches to do
+                        if args.cutn_batches_final <= 0:
+                            args.cutn_batches_final = 1 # make sure we do at least one batch
                         percent_done = (steps - cur_t) / steps
                         tcb = val_interpolate(0.0, float(args.cutn_batches), 1.0, float(args.cutn_batches_final), float(percent_done))
                         temp_cutn_batches = int(tcb)

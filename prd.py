@@ -936,6 +936,17 @@ def random_file(directory):
     file = random.choice(files)
     return(file)
 
+def get_resampling_mode():
+    try:
+        from PIL import __version__, Image
+        major_ver = int(__version__.split('.')[0])
+        if major_ver >= 9:
+            return Image.Resampling.LANCZOS
+        else:
+            return Image.LANCZOS
+    except Exception as ex:
+        return 1  # 'Lanczos' irrespective of version.
+
 # Check for init randomizer in settings, and configure a random init if found
 init_image_OriginalPath  = init_image
 if init_image != None:
@@ -951,7 +962,7 @@ if init_image != None:
         if (temp_width != width_height[0]) or (temp_height != width_height[1]):
             print('Randomly chosen init image does not match width and height from settings.')
             print('It will be resized as temp_init.png and used as your init.')
-            temp = temp.resize(width_height, Image.Resampling.LANCZOS)
+            temp = temp.resize(width_height, get_resampling_mode())
             temp.save('temp_init.png')
             init_image = 'temp_init.png'
 
@@ -1591,7 +1602,7 @@ def do_run():
         init = None
         if init_image is not None:
             init = Image.open(fetch(init_image)).convert('RGB')
-            init = init.resize((args.side_x, args.side_y), Image.Resampling.LANCZOS)
+            init = init.resize((args.side_x, args.side_y), get_resampling_mode())
             init = TF.to_tensor(init).to(device).unsqueeze(0).mul(2).sub(1)
 
         if args.perlin_init:
@@ -3221,7 +3232,7 @@ try:
             if cl_args.gobiginit_scaled == False:
                 reside_x = side_x * gobig_scale
                 reside_y = side_y * gobig_scale
-                source_image = input_image.resize((reside_x, reside_y), Image.Resampling.LANCZOS)
+                source_image = input_image.resize((reside_x, reside_y), get_resampling_mode())
             else:
                 source_image = Image.open(progress_image).convert('RGBA')
 

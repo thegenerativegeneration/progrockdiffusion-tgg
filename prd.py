@@ -859,6 +859,8 @@ if clamp_max == 'auto':
     elif steps <= 300: clamp_max = 0.05
     elif steps <= 500: clamp_max = 0.075
     else: clamp_max = 0.1
+    if use_secondary_model == False:
+        clamp_max = clamp_max * 2
     clamp_max = num_to_schedule(clamp_max)
     print(f'Clamp_max automatically set to {clamp_max}')
 elif type(clamp_max) != str:
@@ -1537,16 +1539,17 @@ def do_run():
                 print(f'\nPrompt for step {s}: {sample_prompt}')
 
             model_stats = []
-            clipcount = 0
-            for clip_model in clip_models:
+            for clip_model, clip_modelname in clip_models:
                 cutn = 16
                 model_stat = {
                     "clip_model": None,
                     "target_embeds": [],
                     "make_cutouts": None,
-                    "weights": []
+                    "weights": [],
+                    "clip_model_name": None
                 }
                 model_stat["clip_model"] = clip_model
+                model_stat["clip_model_name"] = clip_modelname
 
                 for prompt in sample_prompt:
                     txt, weight = parse_prompt(prompt, {'s': s})

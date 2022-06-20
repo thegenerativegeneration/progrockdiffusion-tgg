@@ -1549,7 +1549,7 @@ def do_run():
                     "clip_model_name": None
                 }
                 model_stat["clip_model"] = clip_model
-                model_stat["clip_model_name"] = clip_modelname
+                model_stat["clip_model_name"] = clip_modelname # for future use, nice to know what model we're working with
 
                 for prompt in sample_prompt:
                     txt, weight = parse_prompt(prompt, {'s': s})
@@ -1566,18 +1566,6 @@ def do_run():
                     else:
                         model_stat["target_embeds"].append(txt)
                         model_stat["weights"].append(weight)
-
-                    # Generate a confidence score from what CLIP found
-                    # by taking the top 10 values and subtracting the bottom 10
-                    # global scoreprompt
-                    # if scoreprompt == True:
-                    #     hasconfidence, conindex  = txt.topk(10)
-                    #     hasconfidence = hasconfidence.sum()
-                    #     lackconfidence, lackconindex  = txt.topk(10,largest=False)
-                    #     lackconfidence = lackconfidence.sum()
-                    #     confidence = 100.00 - (hasconfidence - lackconfidence)
-                    #     print(f'[{clip_modelname[clipcount]:<10}] scored this prompt: {confidence:.2f}')
-                clipcount += 1
 
                 if image_prompt:
                     model_stat["make_cutouts"] = MakeCutouts(
@@ -1702,7 +1690,6 @@ def do_run():
                         t_int = int(
                             t.item()
                         ) + 1  #errors on last step without +1, need to find source
-                        #when using SLIP Base model the dimensions need to be hard coded to avoid AttributeError: 'VisionTransformer' object has no attribute 'input_resolution'
                         try:
                             input_resolution = model_stat[
                                 "clip_model"].visual.input_resolution
@@ -2652,43 +2639,33 @@ if use_secondary_model:
     secondary_model = load_secondary_model()
 
 clip_models = []
-clip_modelname = []
 
 if ViTB32 is True:
-    clip_modelname.append('ViTB32')
-    clip_models.append(load_clip_model('ViT-B/32'))
+    clip_models.append((load_clip_model('ViT-B/32'), 'ViTB32'))
 
 if ViTB16 is True:
-    clip_modelname.append('ViTB16')
-    clip_models.append(load_clip_model('ViT-B/16'))
+    clip_models.append((load_clip_model('ViT-B/16'), 'ViTB16'))
 
 if ViTL14 is True:
-    clip_modelname.append('ViTL14')
-    clip_models.append(load_clip_model('ViT-L/14'))
+    clip_models.append((load_clip_model('ViT-L/14'), 'ViTL14'))
 
 if ViTL14_336 is True:
-    clip_modelname.append('ViTL14_336')
-    clip_models.append(load_clip_model('ViT-L/14@336px'))
+    clip_models.append((load_clip_model('ViT-L/14@336px'), 'ViTL14_336'))
 
 if RN50 is True:
-    clip_modelname.append('RN50')
-    clip_models.append(load_clip_model('RN50'))
+    clip_models.append((load_clip_model('RN50'), 'RN50'))
 
 if RN50x4 is True:
-    clip_modelname.append('RN50x4')
-    clip_models.append(load_clip_model('RN50x4'))
+    clip_models.append((load_clip_model('RN50x4'), 'RN50x4'))
 
 if RN50x16 is True:
-    clip_modelname.append('RN50x16')
-    clip_models.append(load_clip_model('RN50x16'))
+    clip_models.append((load_clip_model('RN50x16'), 'RN50x16'))
 
 if RN50x64 is True:
-    clip_modelname.append('RN50x64')
-    clip_models.append(load_clip_model('RN50x64'))
+    clip_models.append((load_clip_model('RN50x64'), 'RN50x64'))
 
 if RN101 is True:
-    clip_modelname.append('RN101')
-    clip_models.append(load_clip_model('RN101'))
+    clip_models.append((load_clip_model('RN101'), 'RN101'))
 
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])

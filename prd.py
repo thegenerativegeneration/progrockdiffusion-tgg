@@ -822,6 +822,14 @@ if cl_args.useinit:
 else:
     useinit = False
 
+def val_interpolate(x1, y1, x2, y2, x):
+    #Linear interpolation. Return y between y1 and y2 for the same position x is bettewen x1 and x2 
+    d = [[x1, y1],[x2, y2]]
+    output = d[0][1] + (x - d[0][0]) * ((d[1][1] - d[0][1])/(d[1][0] - d[0][0]))
+    if type(y1) == int:
+        output = int(output) # return the proper type
+    return(output)
+
 def num_to_schedule(input, final=-9999):
     # take a single number and turn it into a string-style schedule, with support for interpolated
     if final != -9999:
@@ -885,9 +893,38 @@ if clip_guidance_scale == 'auto':
     clip_guidance_scale = num_to_schedule(clip_guidance_scale)
     print(f'clip_guidance_scale set automatically to: {clip_guidance_scale}')
 
+og_cutn_batches = cutn_batches
+if type(cutn_batches) != str:
+    if cutn_batches_final != None:
+        cutn_batches = num_to_schedule(cutn_batches, cutn_batches_final)
+    else:
+        cutn_batches = num_to_schedule(cutn_batches)
+    print(f'Converted cutn_batches to schedule.')
+    logger.debug(f'cutn_batches schedule is: {cutn_batches}')
+
 if cl_args.prompt:
     text_prompts["0"] = cl_args.prompt
     print(f'Setting prompt to {text_prompts}')
+
+# WEIGHTED CLIP MODELS - convert old true / false to 1.0 or 0.0
+if ViTB32 == True: ViTB32 = 1.0
+elif ViTB32 == False: ViTB32 = 0.0
+if ViTB16 == True: ViTB16 = 1.0
+elif ViTB16 == False: ViTB16 = 0.0
+if ViTL14 == True: ViTL14 = 1.0
+elif ViTL14 == False: ViTL14 = 0.0
+if ViTL14_336 == True: ViTL14_336 = 1.0
+elif ViTL14_336 == False: ViTL14_336 = 0.0
+if RN101 == True: RN101 = 1.0
+elif RN101 == False: RN101 = 0.0
+if RN50 == True: RN50 = 1.0
+elif RN50 == False: RN50 = 0.0
+if RN50x4 == True: RN50x4 = 1.0
+elif RN50x4 == False: RN50x4 = 0.0
+if RN50x16 == True: RN50x16 = 1.0
+elif RN50x16 == False: RN50x16 = 0.0
+if RN50x64 == True: RN50x64 = 1.0
+elif RN50x64 == False: RN50x64 = 0.0
 
 # PROMPT RANDOMIZERS
 # If any word in the prompt starts and ends with _, replace it with a random line from the corresponding text file
@@ -1028,14 +1065,6 @@ def ease(num, t):
 
 def interp(t):
     return 3 * t**2 - 2 * t**3
-
-def val_interpolate(x1, y1, x2, y2, x):
-    #Linear interpolation. Return y between y1 and y2 for the same position x is bettewen x1 and x2 
-    d = [[x1, y1],[x2, y2]]
-    output = d[0][1] + (x - d[0][0]) * ((d[1][1] - d[0][1])/(d[1][0] - d[0][0]))
-    if type(y1) == int:
-        output = int(output) # return the proper type
-    return(output)
 
 def smooth_jazz(schedule):
     # Take a list of numbers (i.e. an already-evaluated schedule),
@@ -1420,6 +1449,7 @@ actual_run_steps = 0
 def do_run():
     # Smooth out them tasty schedules if the user wills it so...
     if args.smooth_schedules == True:
+        args.cutn_batches = smooth_jazz(args.cutn_batches)
         args.cut_overview = smooth_jazz(args.cut_overview)
         args.cut_innercut = smooth_jazz(args.cut_innercut)
         args.cut_ic_pow = smooth_jazz(args.cut_ic_pow)
@@ -1539,17 +1569,19 @@ def do_run():
                 print(f'\nPrompt for step {s}: {sample_prompt}')
 
             model_stats = []
-            for clip_model, clip_modelname in clip_models:
+            for clip_model, clip_modelname, clip_weight in clip_models:
                 cutn = 16
                 model_stat = {
                     "clip_model": None,
                     "target_embeds": [],
                     "make_cutouts": None,
                     "weights": [],
-                    "clip_model_name": None
+                    "clip_model_name": None,
+                    "clip_weight": None
                 }
                 model_stat["clip_model"] = clip_model
                 model_stat["clip_model_name"] = clip_modelname # for future use, nice to know what model we're working with
+                model_stat["clip_weight"] = clip_weight
 
                 for prompt in sample_prompt:
                     txt, weight = parse_prompt(prompt, {'s': s})
@@ -1677,29 +1709,27 @@ def do_run():
                     x_in = out['pred_xstart'] * fac + x * (1 - fac)
                     x_in_grad = torch.zeros_like(x_in)
                 for model_stat in model_stats:
-                    temp_cutn_batches = args.cutn_batches
-                    if type(args.cutn_batches_final) is int:
-                        # interpolate value if we have a range of cutn_batches to do
-                        if args.cutn_batches_final <= 0:
-                            args.cutn_batches_final = 1 # make sure we do at least one batch
-                        percent_done = (steps - cur_t) / steps
-                        tcb = val_interpolate(0.0, float(args.cutn_batches), 1.0, float(args.cutn_batches_final), float(percent_done))
-                        temp_cutn_batches = int(tcb)
-
-                    for i in range(temp_cutn_batches):
-                        t_int = int(
-                            t.item()
-                        ) + 1  #errors on last step without +1, need to find source
+                    t_int = int(t.item()) + 1
+                    logger.debug(f'Doing {args.cutn_batches[1000 - t_int]} batches at {t_int} diff steps.')
+                    for i in range(args.cutn_batches[1000 - t_int]):
+                        # t_int = int(t.item()) + 1  #errors on last step without +1, need to find source
                         try:
                             input_resolution = model_stat[
                                 "clip_model"].visual.input_resolution
                         except:
                             input_resolution = 224
 
+                        # Apply model weight to # of overview and innercuts to do
+                        o_cuts = int(args.cut_overview[1000 - t_int] * model_stat["clip_weight"])
+                        i_cuts = int(args.cut_innercut[1000 - t_int] * model_stat["clip_weight"])
+                        if o_cuts == 0 and i_cuts == 0:
+                            i_cuts = 1 # we have to do something otherwise we crash
+                        logger.debug(f'Doing {o_cuts} overview cuts and {i_cuts} inner for {model_stat["clip_model_name"]}')
+                        # Then do the cuts
                         cuts = MakeCutoutsDango(
                             input_resolution,
-                            Overview=args.cut_overview[1000 - t_int],
-                            InnerCrop=args.cut_innercut[1000 - t_int],
+                            Overview=o_cuts,
+                            InnerCrop=i_cuts,
                             IC_Size_Pow=args.cut_ic_pow[1000 - t_int],
                             IC_Grey_P=args.cut_icgray_p[1000 - t_int])
                         clip_in = normalize(cuts(x_in.add(1).div(2)))
@@ -1708,17 +1738,14 @@ def do_run():
                         dists = spherical_dist_loss(
                             image_embeds.unsqueeze(1),
                             model_stat["target_embeds"].unsqueeze(0))
-                        dists = dists.view([
-                            args.cut_overview[1000 - t_int] +
-                            args.cut_innercut[1000 - t_int], n, -1
-                        ])
+                        dists = dists.view([o_cuts + i_cuts, n, -1])
                         losses = dists.mul(
                             model_stat["weights"]).sum(2).mean(0)
                         loss_values.append(losses.sum().item(
                         ))  # log loss, probably shouldn't do per cutn_batch
                         x_in_grad += torch.autograd.grad(
                             losses.sum() * args.clip_guidance_scale[1000 - t_int],
-                            x_in)[0] / cutn_batches
+                            x_in)[0] / args.cutn_batches[1000 - t_int]
                 tv_losses = tv_loss(x_in)
                 if use_secondary_model is True:
                     range_losses = range_loss(out)
@@ -2039,7 +2066,7 @@ def save_settings():
         'range_scale': range_scale,
         'sat_scale': sat_scale,
         # 'cutn': cutn,
-        'cutn_batches': cutn_batches,
+        'cutn_batches': og_cutn_batches,
         'cutn_batches_final': cutn_batches_final,
         'max_frames': max_frames,
         'interp_spline': interp_spline,
@@ -2638,34 +2665,35 @@ def load_lpips_model(net: str = 'vgg'):
 if use_secondary_model:
     secondary_model = load_secondary_model()
 
+# clip_models contains the model itself, the name of the model, and the supplied weight value
 clip_models = []
 
-if ViTB32 is True:
-    clip_models.append((load_clip_model('ViT-B/32'), 'ViTB32'))
+if ViTB32 > 0.0:
+    clip_models.append((load_clip_model('ViT-B/32'), 'ViTB32', ViTB32))
 
-if ViTB16 is True:
-    clip_models.append((load_clip_model('ViT-B/16'), 'ViTB16'))
+if ViTB16 > 0.0:
+    clip_models.append((load_clip_model('ViT-B/16'), 'ViTB16', ViTB16))
 
-if ViTL14 is True:
-    clip_models.append((load_clip_model('ViT-L/14'), 'ViTL14'))
+if ViTL14 > 0.0:
+    clip_models.append((load_clip_model('ViT-L/14'), 'ViTL14', ViTL14))
 
-if ViTL14_336 is True:
-    clip_models.append((load_clip_model('ViT-L/14@336px'), 'ViTL14_336'))
+if ViTL14_336 > 0.0:
+    clip_models.append((load_clip_model('ViT-L/14@336px'), 'ViTL14_336', ViTL14_336))
 
-if RN50 is True:
-    clip_models.append((load_clip_model('RN50'), 'RN50'))
+if RN50 > 0.0:
+    clip_models.append((load_clip_model('RN50'), 'RN50', RN50))
 
-if RN50x4 is True:
-    clip_models.append((load_clip_model('RN50x4'), 'RN50x4'))
+if RN50x4 > 0.0:
+    clip_models.append((load_clip_model('RN50x4'), 'RN50x4', RN50x4))
 
-if RN50x16 is True:
-    clip_models.append((load_clip_model('RN50x16'), 'RN50x16'))
+if RN50x16 > 0.0:
+    clip_models.append((load_clip_model('RN50x16'), 'RN50x16', RN50x16))
 
-if RN50x64 is True:
-    clip_models.append((load_clip_model('RN50x64'), 'RN50x64'))
+if RN50x64 > 0.0:
+    clip_models.append((load_clip_model('RN50x64'), 'RN50x64', RN50x64))
 
-if RN101 is True:
-    clip_models.append((load_clip_model('RN101'), 'RN101'))
+if RN101 > 0.0:
+    clip_models.append((load_clip_model('RN101'), 'RN101', RN101))
 
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])
@@ -3044,8 +3072,7 @@ args = {
     'tv_scale': tv_scale,
     'range_scale': range_scale,
     'sat_scale': sat_scale,
-    'cutn_batches': cutn_batches,
-    'cutn_batches_final': cutn_batches_final,
+    'cutn_batches': eval(cutn_batches),
     'init_image': init_image,
     'init_scale': init_scale,
     'skip_steps': skip_steps,

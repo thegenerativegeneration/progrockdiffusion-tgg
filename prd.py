@@ -57,6 +57,11 @@ from pickle import FALSE
 import shutil
 import logging
 import argparse
+from helpers.vram_helpers import (
+    track_model_vram,
+    estimate_vram_requirements,
+    log_max_allocated,
+)
 
 from attr import has
 root_path = os.getcwd()
@@ -417,41 +422,6 @@ if not isinstance(numeric_level, int):
     raise ValueError(f"Invalid log level: {cl_args.log_level}")
 logging.basicConfig(level=numeric_level)
 logger = logging.getLogger(__name__)
-
-def format_bytes(num: Union[int, float], metric: bool = False, precision: int = 1) -> str:
-    """
-    Human-readable formatting of bytes, using binary (powers of 1024)
-    or metric (powers of 1000) representation.
-    """
-
-    # When this is moved to a separate submodule, we can move these constants
-    # to the module scope so they only have to be declared once.
-    METRIC_LABELS: List[str] = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
-    BINARY_LABELS: List[str] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"]
-    PRECISION_OFFSETS: List[float] = [0.5, 0.05, 0.005, 0.0005]
-    PRECISION_FORMATS: List[str] = ["{}{:.0f} {}", "{}{:.1f} {}", "{}{:.2f} {}",
-                                    "{}{:.3f} {}"]
-
-    assert isinstance(num, (int, float)), "num must be an int or float"
-    assert isinstance(metric, bool), "metric must be a bool"
-    assert isinstance(precision, int) and precision >= 0 and precision <= 3, "precision must be an int (range 0-3)"
-
-    unit_labels = METRIC_LABELS if metric else BINARY_LABELS
-    last_label = unit_labels[-1]
-    unit_step = 1000 if metric else 1024
-    unit_step_thresh = unit_step - PRECISION_OFFSETS[precision]
-
-    is_negative = num < 0
-    if is_negative: # Faster than ternary assignment or always running abs().
-        num = abs(num)
-
-    for unit in unit_labels:
-        if num < unit_step_thresh:
-            break
-        if unit != last_label:
-            num /= unit_step
-
-    return PRECISION_FORMATS[precision].format("-" if is_negative else "", num, unit)
 
 
 # Simple check to see if a key is present in the settings file
@@ -1584,7 +1554,6 @@ def do_run():
                     #print(f'weight is type {type(weight)}{weight} at step {s}')
                     txt = clip_model.encode_text(
                         clip.tokenize(prompt).to(device)).float()
-                    
                     if args.fuzzy_prompt:
                         for i in range(25):
                             model_stat["target_embeds"].append(
@@ -1629,7 +1598,7 @@ def do_run():
                     raise RuntimeError('The weights must not sum to 0.')
                 model_stat["weights"] /= model_stat["weights"].sum().abs()
                 model_stats.append(model_stat)
-            
+
             scoreprompt = False
 
         initial_weights = False
@@ -2599,76 +2568,48 @@ model_default = model_config['image_size']
 
 
 def load_secondary_model():
-    memory_allocated = torch.cuda.memory_allocated(device)
-    logger.debug(f"Memory currently allocated: {format_bytes(memory_allocated)}")
-    logger.debug(f"Loading secondary model")
-    secondary_model = SecondaryDiffusionImageNet2()
-    secondary_model.load_state_dict(
-        torch.load(f'{model_path}/secondary_model_imagenet_2.pth',
-                   map_location='cpu'))
-    secondary_model.eval().requires_grad_(False).to(device)
-    logger.debug(f"Loaded secondary model. Used: {format_bytes(torch.cuda.memory_allocated(device) - memory_allocated)}.")
-    logger.debug(f"Total memory used: {format_bytes(torch.cuda.memory_allocated(device))}.")
+    with track_model_vram(device, "secondary model"):
+        secondary_model = SecondaryDiffusionImageNet2()
+        secondary_model.load_state_dict(
+            torch.load(f'{model_path}/secondary_model_imagenet_2.pth',
+                       map_location='cpu'))
+        secondary_model.eval().requires_grad_(False).to(device)
     return secondary_model
 
 
 def load_clip_model(model_name: Text):
-    logger.debug(f"Loading {model_name} model")
-    memory_allocated = torch.cuda.memory_allocated(device)
-    loaded_model = clip.load(model_name,
-                             jit=False,
-                             device=device)[0].eval().requires_grad_(False)
-    logger.debug(f"Loaded {model_name}. Used: {format_bytes(torch.cuda.memory_allocated(device) - memory_allocated)}.")
-    logger.debug(f"Total memory allocated: {format_bytes(torch.cuda.memory_allocated(device))}.")
+    with track_model_vram(device, model_name):
+        loaded_model = clip.load(model_name,
+                                 jit=False,
+                                 device=device)[0].eval().requires_grad_(False)
     return loaded_model
 
 
 def load_lpips_model(net: str = 'vgg'):
-    logger.debug(f"Loading LPIPS model")
-    memory_allocated = torch.cuda.memory_allocated(device)
-    lpips_model = lpips.LPIPS(net=net).to(device)
-    logger.debug(f"Loaded LPIPS model. Used: {format_bytes(torch.cuda.memory_allocated(device) - memory_allocated)}.")
-    logger.debug(f"Total memory allocated: {format_bytes(torch.cuda.memory_allocated(device))}.")
+    with track_model_vram(device, "LPIPS model"):
+        lpips_model = lpips.LPIPS(net=net).to(device)
     return lpips_model
 
+# Map model parameter names to the load names
+model_load_name_map = {
+    'ViTB32': 'ViT-B/32',
+    'ViTB16': 'ViT-B/16',
+    'ViTL14': 'ViT-L/14',
+    'ViTL14_336': 'ViT-L/14@336px',
+    'RN50': 'RN50',
+    'RN50x4': 'RN50x4',
+    'RN50x16': 'RN50x16',
+    'RN50x64': 'RN50x64',
+    'RN101': 'RN101'
+}
 
-if use_secondary_model:
-    secondary_model = load_secondary_model()
-
-# clip_models contains the model itself, the name of the model, and the supplied weight value
-clip_models = []
-
-if ViTB32 > 0.0:
-    clip_models.append((load_clip_model('ViT-B/32'), 'ViTB32', ViTB32))
-
-if ViTB16 > 0.0:
-    clip_models.append((load_clip_model('ViT-B/16'), 'ViTB16', ViTB16))
-
-if ViTL14 > 0.0:
-    clip_models.append((load_clip_model('ViT-L/14'), 'ViTL14', ViTL14))
-
-if ViTL14_336 > 0.0:
-    clip_models.append((load_clip_model('ViT-L/14@336px'), 'ViTL14_336', ViTL14_336))
-
-if RN50 > 0.0:
-    clip_models.append((load_clip_model('RN50'), 'RN50', RN50))
-
-if RN50x4 > 0.0:
-    clip_models.append((load_clip_model('RN50x4'), 'RN50x4', RN50x4))
-
-if RN50x16 > 0.0:
-    clip_models.append((load_clip_model('RN50x16'), 'RN50x16', RN50x16))
-
-if RN50x64 > 0.0:
-    clip_models.append((load_clip_model('RN50x64'), 'RN50x64', RN50x64))
-
-if RN101 > 0.0:
-    clip_models.append((load_clip_model('RN101'), 'RN101', RN101))
 
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])
 
 lpips_model = load_lpips_model()
+
+clip_modelname = [model_name for model_name in model_load_name_map.keys() if eval(model_name) > 0.0]
 
 #Get corrected sizes
 side_x = (width_height[0] // 64) * 64
@@ -2677,6 +2618,32 @@ if side_x != width_height[0] or side_y != width_height[1]:
     print(
         f'Changing output size to {side_x}x{side_y}. Dimensions must by multiples of 64.'
     )
+
+estimate_vram_requirements(
+    side_x=side_x,
+    side_y=side_y,
+    cut_innercut=cut_innercut,
+    cut_overview=cut_overview,
+    clip_model_names=clip_modelname,
+    diffusion_model_name=diffusion_model,
+    use_secondary=use_secondary_model,
+    device=device
+)
+
+
+if use_secondary_model:
+    secondary_model = load_secondary_model()
+
+# clip_models contains the model itself, the name of the model, and the supplied weight value
+clip_models = [
+    (load_clip_model(model_load_name_map[model_name]), model_name, eval(model_name))
+    for model_name in clip_modelname
+]
+
+normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
+                        std=[0.26862954, 0.26130258, 0.27577711])
+
+lpips_model = load_lpips_model()
 
 #Update Model Settings
 timestep_respacing = f'ddim{steps}'
@@ -3105,7 +3072,6 @@ args = SimpleNamespace(**args)
 if cl_args.gobiginit == None:
     model, diffusion = create_model_and_diffusion(**model_config)
     #print(f'Prepping model: {model_path}/{diffusion_model}.pt')
-    model.to(device)
     model.load_state_dict(
         torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
     model.requires_grad_(False).eval()
@@ -3114,6 +3080,7 @@ if cl_args.gobiginit == None:
             param.requires_grad_()
     if model_config['use_fp16']:
         model.convert_to_fp16()
+    model.to(device)
     gc.collect()
     if "cuda" in str(device):
         with torch.cuda.device(device):
@@ -3313,6 +3280,7 @@ except KeyboardInterrupt:
     pass
 finally:
     print('\n\nAll image(s) finished.')
+    log_max_allocated(device)
     gc.collect()
     if "cuda" in str(device):
         with torch.cuda.device(device):

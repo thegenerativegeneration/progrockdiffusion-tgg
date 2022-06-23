@@ -104,7 +104,6 @@ import gc
 import io
 import math
 import timm
-from IPython import display
 import lpips
 from PIL import Image, ImageOps, ImageStat, ImageEnhance
 from PIL.PngImagePlugin import PngInfo
@@ -128,9 +127,7 @@ from guided_diffusion.script_util import create_model_and_diffusion, model_and_d
 from datetime import datetime
 import numpy as np
 import numexpr
-import matplotlib.pyplot as plt
 import random
-from ipywidgets import Output
 import hashlib
 import urllib.request
 from os.path import exists
@@ -1461,8 +1458,6 @@ def do_run():
         if stop_on_next_loop:
             break
 
-        display.clear_output(wait=True)
-
         # Inits if not video frames
         if args.animation_mode != "Video Input":
             if args.init_image == '':
@@ -1521,8 +1516,9 @@ def do_run():
             np.random.seed(seed)
             random.seed(seed)
             torch.manual_seed(seed)
-            #torch.cuda.manual_seed_all(seed) # jason -- commented this out because the above handles it and is device agnostic
-            torch.backends.cudnn.deterministic = True
+            #torch.use_deterministic_algorithms(True, warn_only=True)
+            #torch.cuda.manual_seed_all(seed)
+            #torch.backends.cudnn.deterministic = True
 
         target_embeds, weights = [], []
 
@@ -1773,17 +1769,6 @@ def do_run():
             if args.clamp_grad and x_is_NaN == False:
                 magnitude = grad.square().mean().sqrt()
 
-                # # save_tensor_as_image(grad, "grad.png")
-                # #image_data = grad.data.cpu().numpy()
-                # #plt.imshow(image_data, cmap = "gray")
-                # #plt.savefig("test.png", bbox_inches = "tight", pad_inches = 0.0)
-
-                # if isinstance(args.clamp_max, list):
-                #     clamp_max = ease(args.clamp_max, timestep)
-                # elif isinstance(args.clamp_max, str):
-                #     clamp_max = float(numexpr.evaluate(args.clamp_max))
-                # else:
-
                 return grad * magnitude.clamp(
                     max=args.clamp_max[1000 - t_int]
                 ) / magnitude
@@ -1794,16 +1779,9 @@ def do_run():
         else:
             sample_fn = diffusion.plms_sample_loop_progressive
 
-        image_display = Output()
         progressBar = tqdm(range(steps))
+        starting_init = init
         for i in range(args.n_batches):
-            #if args.animation_mode == 'None':
-                #display.clear_output(wait=True)
-                #batchBar = tqdm(range(args.n_batches), desc="Batches")
-                #batchBar.n = i
-                #batchBar.refresh()
-            #print('')
-            #display.display(image_display)
             gc.collect()
             if "cuda" in str(device):
                 with torch.cuda.device(device):
@@ -1813,9 +1791,12 @@ def do_run():
             global actual_run_steps
             actual_run_steps = skip_steps
             total_steps = cur_t
+            logger.debug(f'cur_t at start of image is {cur_t} and diffusion.num_timesteps is {diffusion.num_timesteps}')
 
             if perlin_init:
                 init = regen_perlin()
+            else:
+                init = starting_init # make sure we return to a baseline for each image in a batch
 
             def do_sample_fn(_init_image, _skip):
                 if args.sampling_mode == 'ddim':
@@ -1854,7 +1835,6 @@ def do_run():
                 samples = do_sample_fn(init, steps - cur_t - 1)
                 for j, sample in enumerate(samples):
                     actual_run_steps += 1
-                    #print(f'debug: {actual_run_steps} out of {actual_total_steps}')
                     progressBar.n = actual_run_steps
                     progressBar.refresh()
                     cur_t -= 1
@@ -1867,115 +1847,114 @@ def do_run():
                             intermediateStep = True
                     elif actual_run_steps in args.intermediate_saves:
                         intermediateStep = True
-                    with image_display:
-                        if actual_run_steps % args.display_rate == 0 or cur_t == -1 or intermediateStep == True:
-                            for k, image in enumerate(sample['pred_xstart']):
-                                current_time = datetime.now().strftime(
-                                    '%y%m%d-%H%M%S_%f')
-                                percent = math.ceil(actual_run_steps / actual_total_steps * 100)
-                                if args.n_batches > 0:
-                                    #if intermediates are saved to the subfolder, don't append a step or percentage to the name
-                                    if cur_t == -1 and args.intermediates_in_subfolder is True:
-                                        save_num = f'{frame_num:04}' if animation_mode != "None" else i
-                                        filename = f'{args.batch_name}_{args.batchNum}_{save_num}.png'
-                                    else:
-                                        #If we're working with percentages, append it
-                                        if args.steps_per_checkpoint is not None:
-                                            filename = f'{args.batch_name}({args.batchNum})_{i:04}-{percent:02}%.png'
-                                        # Or else, iIf we're working with specific steps, append those
-                                        else:
-                                            filename = f'{args.batch_name}({args.batchNum})_{i:04}-{actual_run_steps:03}.png'
-                                image = TF.to_pil_image(
-                                    image.add(1).div(2).clamp(0, 1))
-                                #add some key metadata to the PNG if the commandline allows it
-                                metadata = PngInfo()
-                                if add_metadata == True:
-                                    metadata.add_text("prompt",
-                                                      str(text_prompts))
-                                    metadata.add_text("seed", str(seed))
-                                    metadata.add_text("steps", str(steps))
-                                    metadata.add_text("init_image",
-                                                      str(init_image_OriginalPath))
-                                    metadata.add_text("skip_steps",
-                                                      str(skip_steps))
-                                    metadata.add_text("clip_guidance_scale",
-                                                      str(clip_guidance_scale))
-                                    metadata.add_text("tv_scale",
-                                                      str(tv_scale))
-                                    metadata.add_text("range_scale",
-                                                      str(range_scale))
-                                    metadata.add_text("sat_scale",
-                                                      str(sat_scale))
-                                    metadata.add_text("eta", str(eta))
-                                    metadata.add_text("clamp_max",
-                                                      str(clamp_max))
-                                    metadata.add_text("cut_overview",
-                                                      str(cut_overview))
-                                    metadata.add_text("cut_innercut",
-                                                      str(cut_innercut))
-                                    metadata.add_text("cut_ic_pow",
-                                                      str(og_cut_ic_pow))
 
-                                if actual_run_steps % args.display_rate == 0 or actual_run_steps == 1 or cur_t == -1:
-                                    if cl_args.cuda != '0':
-                                        image.save(f"progress{cl_args.cuda}.png") # note the GPU being used if it's not 0, so it won't overwrite other GPU's work
-                                    else:
-                                        image.save('progress.png')
-                                    #display.clear_output(wait=True)
-                                if args.steps_per_checkpoint is not None:
-                                    if actual_run_steps % args.steps_per_checkpoint == 0 and actual_run_steps > 0:
-                                        if args.intermediates_in_subfolder is True:
-                                            image.save(
-                                                f'{partialFolder}/{filename}')
-                                        else:
-                                            image.save(
-                                                f'{batchFolder}/{filename}')
+                    if actual_run_steps % args.display_rate == 0 or cur_t == -1 or intermediateStep == True:
+                        for k, image in enumerate(sample['pred_xstart']):
+                            current_time = datetime.now().strftime(
+                                '%y%m%d-%H%M%S_%f')
+                            percent = math.ceil(actual_run_steps / actual_total_steps * 100)
+                            if args.n_batches > 0:
+                                #if intermediates are saved to the subfolder, don't append a step or percentage to the name
+                                if cur_t == -1 and args.intermediates_in_subfolder is True:
+                                    save_num = f'{frame_num:04}' if animation_mode != "None" else i
+                                    filename = f'{args.batch_name}_{args.batchNum}_{save_num}.png'
                                 else:
-                                    if actual_run_steps in args.intermediate_saves:
-                                        if args.intermediates_in_subfolder is True:
-                                            image.save(
-                                                f'{partialFolder}/{filename}')
-                                        else:
-                                            image.save(
-                                                f'{batchFolder}/{filename}')
-                                        if geninit is True:
-                                            image.save('geninit.png')
-                                            raise KeyboardInterrupt
-
-                                if cur_t == -1:
-                                    if frame_num == 0:
-                                        save_settings()
-                                    if args.animation_mode != "None":
-                                        image.save('prevFrame.png')
-                                    if args.sharpen_preset != "Off" and animation_mode == "None":
-                                        imgToSharpen = image
-                                        if args.keep_unsharp is True:
-                                            image.save(
-                                                f'{unsharpenFolder}/{filename}'
-                                            )
+                                    #If we're working with percentages, append it
+                                    if args.steps_per_checkpoint is not None:
+                                        filename = f'{args.batch_name}({args.batchNum})_{i:04}-{percent:02}%.png'
+                                    # Or else, iIf we're working with specific steps, append those
                                     else:
-                                        image.save(f'{batchFolder}/{filename}',
-                                                   pnginfo=metadata)
-                                        if cl_args.esrgan:
-                                            print('Resizing with ESRGAN')
-                                            try:
-                                                gc.collect()
-                                                if "cuda" in str(device):
-                                                    with torch.cuda.device(device):
-                                                        torch.cuda.empty_cache()
-                                                subprocess.run([
-                                                   'realesrgan-ncnn-vulkan', '-i', f'{batchFolder}/{filename}', '-o', f'{batchFolder}/ESRGAN-{filename}'
-                                                   ], stdout=subprocess.PIPE).stdout.decode('utf-8')
-                                            except Exception as e:
-                                                print('ESRGAN resize failed. Make sure realesrgan-ncnn-vulkan is in your path (or in this directory)')
-                                                print(e)
+                                        filename = f'{args.batch_name}({args.batchNum})_{i:04}-{actual_run_steps:03}.png'
+                            image = TF.to_pil_image(
+                                image.add(1).div(2).clamp(0, 1))
+                            #add some key metadata to the PNG if the commandline allows it
+                            metadata = PngInfo()
+                            if add_metadata == True:
+                                metadata.add_text("prompt",
+                                                    str(text_prompts))
+                                metadata.add_text("seed", str(seed))
+                                metadata.add_text("steps", str(steps))
+                                metadata.add_text("init_image",
+                                                    str(init_image_OriginalPath))
+                                metadata.add_text("skip_steps",
+                                                    str(skip_steps))
+                                metadata.add_text("clip_guidance_scale",
+                                                    str(clip_guidance_scale))
+                                metadata.add_text("tv_scale",
+                                                    str(tv_scale))
+                                metadata.add_text("range_scale",
+                                                    str(range_scale))
+                                metadata.add_text("sat_scale",
+                                                    str(sat_scale))
+                                metadata.add_text("eta", str(eta))
+                                metadata.add_text("clamp_max",
+                                                    str(clamp_max))
+                                metadata.add_text("cut_overview",
+                                                    str(cut_overview))
+                                metadata.add_text("cut_innercut",
+                                                    str(cut_innercut))
+                                metadata.add_text("cut_ic_pow",
+                                                    str(og_cut_ic_pow))
 
-                                    if (args.animation_mode == "None") and (letsgobig == False) and ((i + 1) < n_batches):
-                                        seed = seed + 1
-                                        progressBar.write(f'Image finished. Using seed {seed} for next image.')
-                                        np.random.seed(seed)
-                                        random.seed(seed)
-                                        torch.manual_seed(seed)
+                            if actual_run_steps % args.display_rate == 0 or actual_run_steps == 1 or cur_t == -1:
+                                if cl_args.cuda != '0':
+                                    image.save(f"progress{cl_args.cuda}.png") # note the GPU being used if it's not 0, so it won't overwrite other GPU's work
+                                else:
+                                    image.save('progress.png')
+                            if args.steps_per_checkpoint is not None:
+                                if actual_run_steps % args.steps_per_checkpoint == 0 and actual_run_steps > 0:
+                                    if args.intermediates_in_subfolder is True:
+                                        image.save(
+                                            f'{partialFolder}/{filename}')
+                                    else:
+                                        image.save(
+                                            f'{batchFolder}/{filename}')
+                            else:
+                                if actual_run_steps in args.intermediate_saves:
+                                    if args.intermediates_in_subfolder is True:
+                                        image.save(
+                                            f'{partialFolder}/{filename}')
+                                    else:
+                                        image.save(
+                                            f'{batchFolder}/{filename}')
+                                    if geninit is True:
+                                        image.save('geninit.png')
+                                        raise KeyboardInterrupt
+
+                            if cur_t == -1:
+                                if frame_num == 0:
+                                    save_settings()
+                                if args.animation_mode != "None":
+                                    image.save('prevFrame.png')
+                                if args.sharpen_preset != "Off" and animation_mode == "None":
+                                    imgToSharpen = image
+                                    if args.keep_unsharp is True:
+                                        image.save(
+                                            f'{unsharpenFolder}/{filename}'
+                                        )
+                                else:
+                                    image.save(f'{batchFolder}/{filename}',
+                                                pnginfo=metadata)
+                                    if cl_args.esrgan:
+                                        print('Resizing with ESRGAN')
+                                        try:
+                                            gc.collect()
+                                            if "cuda" in str(device):
+                                                with torch.cuda.device(device):
+                                                    torch.cuda.empty_cache()
+                                            subprocess.run([
+                                                'realesrgan-ncnn-vulkan', '-i', f'{batchFolder}/{filename}', '-o', f'{batchFolder}/ESRGAN-{filename}'
+                                                ], stdout=subprocess.PIPE).stdout.decode('utf-8')
+                                        except Exception as e:
+                                            print('ESRGAN resize failed. Make sure realesrgan-ncnn-vulkan is in your path (or in this directory)')
+                                            print(e)
+
+                                if (args.animation_mode == "None") and (letsgobig == False) and ((i + 1) < n_batches):
+                                    seed = seed + 1
+                                    progressBar.write(f'Image finished. Using seed {seed} for next image.')
+                                    np.random.seed(seed)
+                                    random.seed(seed)
+                                    torch.manual_seed(seed)
 
                     image = sample['pred_xstart'][0]
                     image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
@@ -2037,15 +2016,6 @@ def do_run():
 
                     if (cur_t == -1):
                         break
-
-
-            with image_display:
-                if args.sharpen_preset != "Off" and animation_mode == "None":
-                    print('Skipping Diffusion Sharpening (not currently supported)...')
-                    #do_superres(imgToSharpen, f'{batchFolder}/{filename}')
-                    display.clear_output()
-
-            #plt.plot(np.array(loss_values), 'r')
         progressBar.close()
 
 
@@ -3395,12 +3365,3 @@ if skip_video_for_run_all == False:
         raise RuntimeError(stderr)
     else:
         print("The video is ready")
-
-    if view_video_in_cell:
-        mp4 = open(filepath, 'rb').read()
-        data_url = "data:video/mp4;base64," + b64encode(mp4).decode()
-        display.HTML("""
-      <video width=400 controls>
-            <source src="%s" type="video/mp4">
-      </video>
-      """ % data_url)

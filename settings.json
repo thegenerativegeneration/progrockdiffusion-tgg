@@ -76,7 +76,7 @@
     "symm_loss_scale":  2400,
     "symm_switch": 45,
     "interp_spline": "Linear",
-    "max_frames": 10000,
+    "max_frames": 1000,
     "sharpen_preset": "Off",
     "frames_scale": 1500,
     "frames_skip_steps": "60%",

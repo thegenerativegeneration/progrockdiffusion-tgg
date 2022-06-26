@@ -905,60 +905,46 @@ def randomizer(category):
     random_item = random.choice(randomizers)
     return(random_item)
 
-# Convert prompts key value to integer
+def randomize_prompts(prompts):
+    # take a list of prompts and handle any _random_ elements
+    newprompts = []
+    for prompt in prompts:
+        if "_" in prompt:
+            while "_" in prompt:
+                start = prompt.index('_')
+                end = prompt.index('_',start+1)
+                swap = prompt[(start + 1):end]
+                swapped = randomizer(swap)
+                prompt = prompt.replace(f'_{swap}_', swapped, 1)
+            newprompt = prompt
+        else:
+            newprompt = prompt
+        newprompts.append(newprompt)
+    return newprompts
+
+# Ugly, but we need to convert the prompts that we get so that their key values are numbers instead of strings
+# plus we need to handle any randomizers, so we do that all here, too.
 converted_prompts = {}
+converted_inner_prompts = {}
 for k, v in text_prompts.items():
-    converted_prompts[int(k)] = [item for item in v]
+    k = int(k) # convert the key value to an integer
+    if type(v) != list:
+        # handle dict verison here
+        for i_k, i_v in v.items():
+            i_k = int(i_k)
+            i_v = randomize_prompts(i_v)
+            converted_inner_prompts.update({i_k: i_v})
+        v = converted_inner_prompts
+        converted_prompts.update({k: v})
+    else:
+        v = randomize_prompts(v)
+        converted_prompts.update({k: v})
 text_prompts = converted_prompts
 
-# Search through the prompt for any _randomizer_ words and replace them accordingly
-prompt_change = False
+print('\nPrompt(s) with randomizers:')
 for k, v in text_prompts.items():
-    if type(v) == list:
-        newprompts = []
-        for prompt in v:
-            if "_" in prompt:
-                while "_" in prompt:
-                    start = prompt.index('_')
-                    end = prompt.index('_',start+1)
-                    swap = prompt[(start + 1):end]
-                    swapped = randomizer(swap)
-                    prompt = prompt.replace(f'_{swap}_', swapped, 1)
-                newprompt = prompt
-                prompt_change = True
-            else:
-                newprompt = prompt
-            newprompts.append(newprompt)
-        if prompt_change == True:
-            v = newprompts
-    else:  # to handle if the prompt is actually a multi-prompt.
-        for kk, vv in v.items():
-            newprompts = []
-            for prompt in vv:
-                if "_" in prompt:
-                    while "_" in prompt:
-                        start = prompt.index('_')
-                        end = prompt.index('_',start+1)
-                        swap = prompt[(start + 1):end]
-                        swapped = randomizer(swap)
-                        prompt = prompt.replace(f'_{swap}_', swapped, 1)
-                    newprompt = prompt
-                    prompt_change = True
-                else:
-                    newprompt = prompt
-                newprompts.append(newprompt)
-            if prompt_change == True:
-                vv = newprompts
-        if prompt_change == True:
-            v = {**v, kk: vv}
-    if prompt_change == True:
-        text_prompts = {**text_prompts, k: v}
-
-if prompt_change == True:
-    print('\nPrompt(s) with randomizers:')
-    for k, v in text_prompts.items():
-        print(f'  {k}: {v}')
-    print('\n')
+    print(f'  {k}: {v}')
+print('\n')
 
 # INIT IMAGE RANDOMIZER
 # If the setting for init_image is a word between two underscores, we'll pull a random image from that directory,

@@ -166,6 +166,19 @@ _512x512_diffusion_uncond_finetune_008100_with_secondary = DiffusionModelProfile
     loss_px_coef=(-4.6e07, 1399, -4.25e-05),
 )
 
+unknown_diffusion_profile = DiffusionModelProfile(
+    name='unknown_diffusion_profile',
+    weight_and_grad_size=0,
+    init_px_coef=(1,),
+    loss_px_coef=(1,)
+)
+
+unknown_clip_profile = ClipModelProfile(
+    name='unknown_clip_profile',
+    load_size=0,
+    cut_coef=(1,)
+)
+
 RN101 = ClipModelProfile(
     name='RN101',
     load_size=294541824,
@@ -258,13 +271,25 @@ def estimate_vram_requirements(
     """
     if use_secondary:
         diffusion_model_name += '_with_secondary'
-    diffusion_profile = DIFFUSION_PROFILES[diffusion_model_name]
+    diffusion_profile = DIFFUSION_PROFILES.get(diffusion_model_name)
+    if not diffusion_profile:
+        logger.debug(
+            f"No existing memory profile for {diffusion_model_name} found. Memory predictions may be inaccurate."
+        )
+        diffusion_profile = unknown_diffusion_profile
+
     max_cuts = max(sum(x) for x in zip(eval(cut_innercut), eval(cut_overview)))
 
-    static_sizes = {
-        model_name: CLIP_PROFILES[model_name].load_size
-        for model_name in clip_model_names
-    }
+    static_sizes = {}
+    for model_name in clip_model_names:
+        profile = CLIP_PROFILES.get(model_name)
+        if not profile:
+            logger.debug(
+                f"No existing memory profile for {model_name} found. Memory predictions may be inaccurate."
+            )
+            profile = unknown_clip_profile
+        static_sizes[model_name] = profile.load_size
+
     static_sizes['LPIPS'] = LPIPS_LOAD_SIZE
     static_sizes[diffusion_model_name] = diffusion_profile.weight_and_grad_size
     static_sizes['diffusion initialization'] = diffusion_profile.estimate_init_bytes(side_x * side_y)
@@ -280,10 +305,10 @@ def estimate_vram_requirements(
     logger.debug('')
 
     dynamic_sizes = {
-        model_name: CLIP_PROFILES[model_name].estimate_peak(max_cuts)
+        model_name: CLIP_PROFILES.get(model_name, unknown_clip_profile).estimate_peak(max_cuts)
         for model_name in clip_model_names
     }
-    estimated_loss_vram = DIFFUSION_PROFILES[diffusion_model_name].estimate_loss_bytes(side_x * side_y)
+    estimated_loss_vram = DIFFUSION_PROFILES.get(diffusion_model_name, unknown_diffusion_profile).estimate_loss_bytes(side_x * side_y)
     dynamic_sizes[diffusion_model_name + ' loss calculations'] = estimated_loss_vram
 
     logger.debug("\tDYNAMIC ALLOCATION ESTIMATES (Released after use during each step)")

@@ -925,10 +925,10 @@ def randomize_prompts(prompts):
 # Ugly, but we need to convert the prompts that we get so that their key values are numbers instead of strings
 # plus we need to handle any randomizers, so we do that all here, too.
 converted_prompts = {}
-converted_inner_prompts = {}
 for k, v in text_prompts.items():
     k = int(k) # convert the key value to an integer
     if type(v) != list:
+        converted_inner_prompts = {}
         # handle dict verison here
         for i_k, i_v in v.items():
             i_k = int(i_k)
@@ -945,7 +945,6 @@ print('\nPrompt(s) with randomizers:')
 for k, v in text_prompts.items():
     print(f'  {k}: {v}')
 print('\n')
-
 # INIT IMAGE RANDOMIZER
 # If the setting for init_image is a word between two underscores, we'll pull a random image from that directory,
 # and set our size accordingly.
@@ -1499,7 +1498,7 @@ def do_run(batch_num, slice_num=-1):
             image_prompt = []
 
         if (type(frame_prompt) is list):
-            frame_prompt = {"0": frame_prompt}
+            frame_prompt = {0: frame_prompt}
 
         #print(f'Frame Prompt: {frame_prompt}')
 
@@ -1511,11 +1510,11 @@ def do_run(batch_num, slice_num=-1):
             sample_prompt = []
 
             print_sample_prompt = False
-            if (str(s) not in frame_prompt.keys()):
+            if (s not in frame_prompt.keys()):
                 sample_prompt = prev_sample_prompt.copy()
             else:
                 print_sample_prompt = True
-                sample_prompt = frame_prompt[str(s)].copy()
+                sample_prompt = frame_prompt[s].copy()
                 prev_sample_prompt = sample_prompt.copy()
 
             #sample_prompt += additional_prompts
@@ -2643,8 +2642,6 @@ print('')
 normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                         std=[0.26862954, 0.26130258, 0.27577711])
 
-lpips_model = load_lpips_model()
-
 #Update Model Settings
 timestep_respacing = f'ddim{steps}'
 diffusion_steps = (1000 // steps) * steps if steps < 1000 else steps
@@ -2805,12 +2802,29 @@ def get_inbetweens(key_frames, integer=False):
 
 
 def split_prompts(prompts):
-    prompt_series = pd.Series([np.nan for a in range(max_frames)])
-    for i, prompt in prompts.items():
-        prompt_series[i] = prompt
-    # prompt_series = prompt_series.astype(str)
-    prompt_series = prompt_series.ffill().bfill()
-    return prompt_series
+    # Take the discrete prompts provided and build a frame-by-frame list of prompts that will be used
+    # Fill any gaps between frame numbers with the previous prompt.
+    prompt_series = {}
+    i = 0
+    last_k = -1
+    last_prompt = []
+    for k, v in prompts.items():
+        if k > last_k:
+            while last_k < k:
+                last_k += 1
+                prompt_series.update({last_k: last_prompt})
+        prompt_series.update({k: v})
+        last_k = k
+        if type(v) != type(last_prompt):
+            del last_prompt
+        last_prompt = v
+    # now fill the list until we get to max_frames, for future animation support
+    if last_k < max_frames:
+        while last_k < max_frames:
+            last_k += 1
+            prompt_series.update({last_k: last_prompt})
+    return prompt_series    
+
 
 
 if key_frames:

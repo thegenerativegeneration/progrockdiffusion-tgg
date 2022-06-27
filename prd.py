@@ -425,9 +425,12 @@ logger = logging.getLogger(__name__)
 
 
 # Simple check to see if a key is present in the settings file
-def is_json_key_present(json, key):
+def is_json_key_present(json, key, subkey="none"):
     try:
-        buf = json[key]
+        if subkey != "none":
+            buf = json[key][subkey]
+        else:
+            buf = json[key]
     except KeyError:
         return False
     if type(buf) == type(None):
@@ -688,8 +691,8 @@ width_height = [
 ]
 
 if symmetry_loss_v or symmetry_loss_h:
-    symm_switch = 100.*(1. - (symm_switch/steps))
-    print(f"Symmetry ends at {100-symm_switch}%")
+    #symm_switch = 100.*(1. - (symm_switch/steps))
+    print(f"Symmetry will end at step {symm_switch}")
 
 #Now override some depending on command line and maybe a special case
 if cl_args.output:
@@ -1708,10 +1711,10 @@ def do_run(batch_num, slice_num=-1):
                 if init is not None and args.init_scale:
                     init_losses = lpips_model(x_in, init)
                     loss = loss + init_losses.sum() * args.init_scale
-                if args.symmetry_loss_v and np.array(t.cpu())[0] > 10*args.symm_switch:
+                if args.symmetry_loss_v and actual_run_steps <= args.symm_switch:
                     sloss = symm_loss_v(x_in,lpips_model)
                     loss = loss + sloss.sum() * args.sloss_scale
-                if args.symmetry_loss_h and np.array(t.cpu())[0] > 10*args.symm_switch:
+                if args.symmetry_loss_h and actual_run_steps <= args.symm_switch:
                     sloss = symm_loss_h(x_in,lpips_model)
                     loss = loss + sloss.sum() * args.sloss_scale
                 x_in_grad += torch.autograd.grad(loss, x_in)[0]
@@ -2022,7 +2025,7 @@ def save_settings():
         'fuzzy_prompt': fuzzy_prompt,
         'rand_mag': rand_mag,
         'eta': eta,
-        'diffusion_model': diffusion_model,
+        'diffusion_model': diffusion_model.name,
         'use_secondary_model': use_secondary_model,
         'diffusion_steps': diffusion_steps,
         'sampling_mode': sampling_mode,
@@ -2268,6 +2271,7 @@ other_sampling_mode = 'bicubic'
 #@markdown If you're having issues with model downloads, check this to compare SHA's:
 check_model_SHA = False  #@param{type:"boolean"}
 
+#TODO: Chance this to use any available model in the JSON file
 if diffusion_model == 'random':
     the_models = ['256x256_diffusion_uncond',
         '512x512_diffusion_uncond_finetune_008100',
@@ -2277,288 +2281,141 @@ if diffusion_model == 'random':
     diffusion_model = random.choice(the_models)
     print(f'Random model selected is {diffusion_model}')
 
-def download_models(diffusion_model,use_secondary_model,fallback=False):
-  model_256_downloaded = False
-  model_512_downloaded = False
-  model_256_comics_downloaded = False
-  model_pixel_art_diffusion_hard_256_downloaded = False
-  model_pixel_art_diffusion_soft_256_downloaded  = False
-  model_secondary_downloaded = False
-
-  model_256_SHA = '983e3de6f95c88c81b2ca7ebb2c217933be1973b1ff058776b970f901584613a'
-  model_512_SHA = '9c111ab89e214862b76e1fa6a1b3f1d329b1a88281885943d2cdbe357ad57648'
-  model_256_comics_SHA = 'f587fd6d2edb093701931e5083a13ab6b76b3f457b60efd1aa873d60ee3d6388'
-  model_pixel_art_diffusion_hard_256_SHA = 'be4a9de943ec06eef32c65a1008c60ad017723a4d35dc13169c66bb322234161'
-  model_pixel_art_diffusion_soft_256_SHA = 'd321590e46b679bf6def1f1914b47c89e762c76f19ab3e3392c8ca07c791039c'
-  model_secondary_SHA = '983e3de6f95c88c81b2ca7ebb2c217933be1973b1ff058776b970f901584613a'
-
-  model_256_link = 'https://openaipublic.blob.core.windows.net/diffusion/jul-2021/256x256_diffusion_uncond.pt'
-  model_512_link = 'http://batbot.tv/ai/models/guided-diffusion/512x512_diffusion_uncond_finetune_008100.pt'
-  model_256_comics_link = 'https://github.com/Sxela/DiscoDiffusion-Warp/releases/download/v0.1.0/256x256_openai_comics_faces_by_alex_spirin_084000.pt'
-  model_pixel_art_diffusion_hard_256_link = 'https://huggingface.co/KaliYuga/pixel_art_diffusion_hard_256/resolve/main/pixel_art_diffusion_hard_256.pt'
-  model_pixel_art_diffusion_soft_256_link = 'https://huggingface.co/KaliYuga/pixel_art_diffusion_soft_256/resolve/main/pixel_art_diffusion_soft_256.pt'
-  model_secondary_link = 'https://the-eye.eu/public/AI/models/v-diffusion/secondary_model_imagenet_2.pth'
-
-  model_256_link_fb = 'https://www.dropbox.com/s/9tqnqo930mpnpcn/256x256_diffusion_uncond.pt'
-  model_512_link_fb = 'https://huggingface.co/lowlevelware/512x512_diffusion_unconditional_ImageNet/resolve/main/512x512_diffusion_uncond_finetune_008100.pt'
-  model_secondary_link_fb = 'https://www.dropbox.com/s/luv4fezod3r8d2n/secondary_model_imagenet_2.pth'
-
-  model_256_path = f'{model_path}/256x256_diffusion_uncond.pt'
-  model_512_path = f'{model_path}/512x512_diffusion_uncond_finetune_008100.pt'
-  model_256_comics_path = f'{model_path}/256x256_openai_comics_faces_by_alex_spirin_084000.pt'
-  model_pixel_art_diffusion_hard_256_path = f'{model_path}/pixel_art_diffusion_hard_256.pt'
-  model_pixel_art_diffusion_soft_256_path = f'{model_path}/pixel_art_diffusion_soft_256.pt'
-  model_secondary_path = f'{model_path}/secondary_model_imagenet_2.pth'
-
-  if fallback:
-    model_256_link = model_256_link_fb
-    model_512_link = model_512_link_fb
-    model_secondary_link = model_secondary_link_fb
-  # Download the diffusion model
-
-  if diffusion_model == '256x256_diffusion_uncond':
-    if os.path.exists(model_256_path) and check_model_SHA:
-      print('Checking 256 Diffusion File')
-      with open(model_256_path,"rb") as f:
-          bytes = f.read()
-          hash = hashlib.sha256(bytes).hexdigest();
-      if hash == model_256_SHA:
-        print('256 Model SHA matches')
-        model_256_downloaded = True
-      else:
-        print("256 Model SHA doesn't match, redownloading...")
-        #wget(model_256_link, model_path)
-        print('256 Model downloading. This may take a while...')
-        urllib.request.urlretrieve(model_256_link, model_256_path)
-        if os.path.exists(model_256_path):
-          model_256_downloaded = True
-        else:
-          print('First URL Failed using FallBack')
-          download_models(diffusion_model,use_secondary_model,True)
-    elif os.path.exists(model_256_path) and not check_model_SHA or model_256_downloaded == True:
-      pass
-    else:
-      #wget(model_256_link, model_path)
-      print('256 Model downloading. This may take a while...')
-      urllib.request.urlretrieve(model_256_link, model_256_path)
-      if os.path.exists(model_256_path):
-        model_256_downloaded = True
-      else:
-        print('First URL failed, using backup')
-        download_models(diffusion_model,True)
-  elif diffusion_model == '512x512_diffusion_uncond_finetune_008100':
-    if os.path.exists(model_512_path) and check_model_SHA:
-      print('Checking 512 Diffusion File')
-      with open(model_512_path,"rb") as f:
-          bytes = f.read()
-          hash = hashlib.sha256(bytes).hexdigest();
-      if hash == model_512_SHA:
-        print('512 Model SHA matches')
-        if os.path.exists(model_512_path):
-          model_512_downloaded = True
-        else:
-          print('First URL failed, using backup')
-          download_models(diffusion_model,use_secondary_model,True)
-      else:
-        print("512 Model SHA doesn't match, redownloading...")
-        #wget(model_512_link, model_path)
-        print('512 Model downloading. This may take a while...')
-        urllib.request.urlretrieve(model_512_link, model_512_path)
-        if os.path.exists(model_512_path):
-          model_512_downloaded = True
-        else:
-          print('First URL failed, using backup')
-          download_models(diffusion_model,use_secondary_model,True)
-    elif os.path.exists(model_512_path) and not check_model_SHA or model_512_downloaded == True:
-      pass
-    else:
-      #wget(model_512_link, model_path)
-      print('512 Model downloading. This may take a while...')
-      urllib.request.urlretrieve(model_512_link, model_512_path)
-      model_512_downloaded = True
-  elif diffusion_model == '256x256_openai_comics_faces_by_alex_spirin_084000':
-      if os.path.exists(model_256_comics_path) and check_model_SHA:
-        print('Checking 256 Comics Diffusion File')
-        with open(model_256_comics_path,"rb") as f:
-            bytes = f.read()
-            hash = hashlib.sha256(bytes).hexdigest();
-        if hash == model_256_comics_SHA:
-          print('256 Comics Model SHA matches')
-          model_256_comics_downloaded = True
-        else:
-          print("256 Comics SHA doesn't match, redownloading...")
-          urllib.request.urlretrieve(model_256_comics_link, model_256_comics_path)
-          model_256_comics_downloaded = True
-      elif os.path.exists(model_256_comics_path) and not check_model_SHA or model_256_comics_downloaded == True:
+@dataclass
+class Diff_Model:
+    def __init__(self):
         pass
-      else:
-        print('256 Comics Model downloading. This may take a while...')
-        urllib.request.urlretrieve(model_256_comics_link, model_256_comics_path)
-        model_256_comics_downloaded = True
+    name: str
+    SHA: str
+    plink: str
+    path: str
+    attention_resolutions: str
+    class_cond: bool
+    rescale_timesteps: bool
+    image_size: int
+    learn_sigma: bool
+    noise_schedule: str
+    num_channels: int
+    num_head_channels: int
+    num_res_blocks: int
+    resblock_updown: bool
+    use_scale_shift_norm: bool
+    slink: str = "none"
 
-  elif diffusion_model == 'pixel_art_diffusion_hard_256':
-      if os.path.exists(model_pixel_art_diffusion_hard_256_path) and check_model_SHA:
-        print('Checking 256 Pixel Art Hard Model File')
-        with open(model_pixel_art_diffusion_hard_256_path,"rb") as f:
-            bytes = f.read()
-            hash = hashlib.sha256(bytes).hexdigest();
-        if hash == model_pixel_art_diffusion_hard_256_SHA:
-          print('256 Pixel Art Hard Model SHA matches')
-          model_pixel_art_diffusion_hard_256_downloaded  = True
+try:
+    with open('diffusion_models.json', 'r', encoding="utf-8") as json_file:
+        print(f'Loading diffusion model details from diffusion_models.json')
+        user_supplied_name = diffusion_model
+        diffusion_models_file = json.load(json_file)
+        if user_supplied_name in diffusion_models_file:
+            diffusion_model = Diff_Model()
+            diffusion_model.name = user_supplied_name
+            diffusion_model.SHA = diffusion_models_file[user_supplied_name]['SHA']
+            diffusion_model.plink = diffusion_models_file[user_supplied_name]['primary_link']
+            if is_json_key_present(settings_file, user_supplied_name, 'secondary_link'):
+                diffusion_model.slink = diffusion_models_file[user_supplied_name]['secondary_link']
+            diffusion_model.path = diffusion_models_file[user_supplied_name]['file_name']
+            diffusion_model.attention_resolutions = diffusion_models_file[user_supplied_name]['attention_resolutions']
+            diffusion_model.class_cond = diffusion_models_file[user_supplied_name]['class_cond']
+            diffusion_model.rescale_timesteps = diffusion_models_file[user_supplied_name]['rescale_timesteps']
+            diffusion_model.image_size = diffusion_models_file[user_supplied_name]['image_size']
+            diffusion_model.learn_sigma = diffusion_models_file[user_supplied_name]['learn_sigma']
+            diffusion_model.noise_schedule = diffusion_models_file[user_supplied_name]['noise_schedule']
+            diffusion_model.num_channels = diffusion_models_file[user_supplied_name]['num_channels']
+            diffusion_model.num_head_channels = diffusion_models_file[user_supplied_name]['num_head_channels']
+            diffusion_model.num_res_blocks = diffusion_models_file[user_supplied_name]['num_res_blocks']
+            diffusion_model.resblock_updown = diffusion_models_file[user_supplied_name]['resblock_updown']
+            diffusion_model.use_scale_shift_norm = diffusion_models_file[user_supplied_name]['use_scale_shift_norm']
+except Exception as e:
+    print('Unable to read diffusion_models.json - check formatting')
+    print(e)
+    quit()
+
+def download_models(diffusion_model,use_secondary_model):
+    model_downloaded = False
+    model_secondary_downloaded = False
+    model_file = f'{model_path}/{diffusion_model.path}'
+    model_secondary_SHA = '983e3de6f95c88c81b2ca7ebb2c217933be1973b1ff058776b970f901584613a'
+    model_secondary_link = 'https://the-eye.eu/public/AI/models/v-diffusion/secondary_model_imagenet_2.pth'
+    model_secondary_link_fb = 'https://www.dropbox.com/s/luv4fezod3r8d2n/secondary_model_imagenet_2.pth'
+    model_secondary_path = f'{model_path}/secondary_model_imagenet_2.pth'
+
+    if os.path.exists(model_file):
+        model_downloaded = True
+        if check_model_SHA:
+            print(f'Checking SHA for {diffusion_model.name}')
+            with open(model_file,"rb") as f:
+                bytes = f.read()
+                hash = hashlib.sha256(bytes).hexdigest();
+            if hash != diffusion_model.SHA:
+                print('SHA does not match. Redownloading...')
+                model_downloaded = False
+
+    if model_downloaded == False:
+        print(f'{diffusion_model.name} Model downloading. This may take a while...')
+        urllib.request.urlretrieve(diffusion_model.plink, model_file)
+        if os.path.exists(model_file):
+            model_downloaded = True
         else:
-          print("256 Pixel Art Hard Model doesn't match, redownloading...")
-          urllib.request.urlretrieve(model_pixel_art_diffusion_hard_256_link, model_pixel_art_diffusion_hard_256_path)
-          model_pixel_art_diffusion_hard_256_downloaded = True
-      elif os.path.exists(model_pixel_art_diffusion_hard_256_path) and not check_model_SHA or model_pixel_art_diffusion_hard_256_downloaded == True:
-        pass
-      else:
-        print('256 Pixel Art Hard Model  downloading. This may take a while...')
-        urllib.request.urlretrieve(model_pixel_art_diffusion_hard_256_link, model_pixel_art_diffusion_hard_256_path)
-        model_pixel_art_diffusion_hard_256_downloaded = True
+            print('First URL failed, using backup if available')
+            if diffusion_model.slink != "none":
+                urllib.request.urlretrieve(diffusion_model.slink, model_file)
+            if os.path.exists(model_file):
+                model_downloaded = True
 
-  elif diffusion_model == 'pixel_art_diffusion_soft_256':
-      if os.path.exists(model_pixel_art_diffusion_soft_256_path) and check_model_SHA:
-        print('Checking 256 Pixel Art soft Model File')
-        with open(model_pixel_art_diffusion_soft_256_path,"rb") as f:
-            bytes = f.read()
-            hash = hashlib.sha256(bytes).hexdigest();
-        if hash == model_pixel_art_diffusion_soft_256_SHA:
-          print('256 Pixel Art soft Model SHA matches')
-          model_pixel_art_diffusion_soft_256_downloaded  = True
-        else:
-          print("256 Pixel Art soft Model doesn't match, redownloading...")
-          urllib.request.urlretrieve(model_pixel_art_diffusion_soft_256_link, model_pixel_art_diffusion_soft_256_path)
-          model_pixel_art_diffusion_soft_256_downloaded = True
-      elif os.path.exists(model_pixel_art_diffusion_soft_256_path) and not check_model_SHA or model_pixel_art_diffusion_soft_256_downloaded == True:
-        pass
-      else:
-        print('256 Pixel Art soft Model  downloading. This may take a while...')
-        urllib.request.urlretrieve(model_pixel_art_diffusion_soft_256_link, model_pixel_art_diffusion_soft_256_path)
-        model_pixel_art_diffusion_soft_256_downloaded = True
+    if model_downloaded == False:
+        print('Unable to download the diffusion model.')
+        print('Please check your diffusion_models.json file for proper formatting,')
+        print('Or check the Prog Rock Diffusion github for updated links.')
+        quit()
 
-  # Download the secondary diffusion model v2
-  if use_secondary_model == True:
-    if os.path.exists(model_secondary_path) and check_model_SHA:
-      print('Checking Secondary Diffusion File')
-      with open(model_secondary_path,"rb") as f:
-          bytes = f.read()
-          hash = hashlib.sha256(bytes).hexdigest();
-      if hash == model_secondary_SHA:
-        print('Secondary Model SHA matches')
+    if os.path.exists(model_secondary_path):
         model_secondary_downloaded = True
-      else:
-        print("Secondary Model SHA doesn't match, redownloading...")
-        #wget(model_secondary_link, model_path)
-        print('Secondary Model downloading. This may take a while...')
+        if check_model_SHA:
+            print(f'Checking SHA for Secondary Model')
+            with open(model_secondary_path,"rb") as f:
+                bytes = f.read()
+                hash = hashlib.sha256(bytes).hexdigest();
+            if hash != model_secondary_SHA:
+                print('SHA does not match. Redownloading...')
+                model_secondary_downloaded = False
+
+    if model_secondary_downloaded == False:
+        print(f'Secondary Model downloading. This may take a while...')
         urllib.request.urlretrieve(model_secondary_link, model_secondary_path)
         if os.path.exists(model_secondary_path):
-          model_secondary_downloaded = True
+            model_secondary_downloaded = True
         else:
-          print('First URL failed, using backup')
-          download_models(diffusion_model,use_secondary_model,True)
-    elif os.path.exists(model_secondary_path) and not check_model_SHA or model_secondary_downloaded == True:
-      pass
-    else:
-      #wget(model_secondary_link, model_path)
-      print('Secondary Model downloading. This may take a while...')
-      urllib.request.urlretrieve(model_secondary_link, model_secondary_path)
-      if os.path.exists(model_secondary_path):
-          model_secondary_downloaded = True
-      else:
-        print('First URL Failed using FallBack')
-        download_models(diffusion_model,use_secondary_model,True)
+            print('First URL failed, using backup if available')
+            urllib.request.urlretrieve(model_secondary_link_fb, model_secondary_path)
+            if os.path.exists(model_secondary_path):
+                model_secondary_downloaded = True
+
+    if model_secondary_downloaded == False:
+        print('Unable to download the secondary diffusion model.')
+        print('Please check the Prog Rock Diffusion github for a possible updated version with new links.')
+        quit()
 
 download_models(diffusion_model,use_secondary_model)
 
 model_config = model_and_diffusion_defaults()
-if diffusion_model == '512x512_diffusion_uncond_finetune_008100':
-    model_config.update({
-        'attention_resolutions': '32, 16, 8',
-        'class_cond': False,
-        'diffusion_steps': diffusion_steps,
-        'rescale_timesteps': True,
-        'timestep_respacing': timestep_respacing,
-        'image_size': 512,
-        'learn_sigma': True,
-        'noise_schedule': 'linear',
-        'num_channels': 256,
-        'num_head_channels': 64,
-        'num_res_blocks': 2,
-        'resblock_updown': True,
-        'use_checkpoint': use_checkpoint,
-        'use_fp16': fp16_mode,
-        'use_scale_shift_norm': True,
-    })
-elif diffusion_model == '256x256_diffusion_uncond':
-    model_config.update({
-        'attention_resolutions': '32, 16, 8',
-        'class_cond': False,
-        'diffusion_steps': diffusion_steps,
-        'rescale_timesteps': True,
-        'timestep_respacing': timestep_respacing,
-        'image_size': 256,
-        'learn_sigma': True,
-        'noise_schedule': 'linear',
-        'num_channels': 256,
-        'num_head_channels': 64,
-        'num_res_blocks': 2,
-        'resblock_updown': True,
-        'use_checkpoint': use_checkpoint,
-        'use_fp16': fp16_mode,
-        'use_scale_shift_norm': True,
-    })
-elif diffusion_model == '256x256_openai_comics_faces_by_alex_spirin_084000':
-    model_config.update({
-          'attention_resolutions': '16',
-          'class_cond': False,
-          'diffusion_steps': 1000,
-          'rescale_timesteps': True,
-          'timestep_respacing': 'ddim100',
-          'image_size': 256,
-          'learn_sigma': True,
-          'noise_schedule': 'linear',
-          'num_channels': 128,
-          'num_heads': 1,
-          'num_res_blocks': 2,
-          'use_checkpoint': use_checkpoint,
-          'use_fp16': True,
-          'use_scale_shift_norm': False,
-      })
-elif diffusion_model == 'pixel_art_diffusion_hard_256':
-    model_config.update({
-          'attention_resolutions': '16',
-          'class_cond': False,
-          'diffusion_steps': 1000,
-          'rescale_timesteps': True,
-          'timestep_respacing': 'ddim100',
-          'image_size': 256,
-          'learn_sigma': True,
-          'noise_schedule': 'linear',
-          'num_channels': 128,
-          'num_heads': 1,
-          'num_res_blocks': 2,
-          'use_checkpoint': use_checkpoint,
-          'use_fp16': True,
-          'use_scale_shift_norm': False,
-      })
-elif diffusion_model == 'pixel_art_diffusion_soft_256':
-    model_config.update({
-          'attention_resolutions': '16',
-          'class_cond': False,
-          'diffusion_steps': 1000,
-          'rescale_timesteps': True,
-          'timestep_respacing': 'ddim100',
-          'image_size': 256,
-          'learn_sigma': True,
-          'noise_schedule': 'linear',
-          'num_channels': 128,
-          'num_heads': 1,
-          'num_res_blocks': 2,
-          'use_checkpoint': use_checkpoint,
-          'use_fp16': True,
-          'use_scale_shift_norm': False,
-      })
-
+model_config.update({
+    'attention_resolutions': diffusion_model.attention_resolutions,
+    'class_cond': diffusion_model.class_cond,
+    'diffusion_steps': diffusion_steps,
+    'rescale_timesteps': diffusion_model.rescale_timesteps,
+    'timestep_respacing': timestep_respacing,
+    'image_size': diffusion_model.image_size,
+    'learn_sigma': diffusion_model.learn_sigma,
+    'noise_schedule': diffusion_model.noise_schedule,
+    'num_channels': diffusion_model.num_channels,
+    'num_head_channels': diffusion_model.num_head_channels,
+    'num_res_blocks': diffusion_model.num_res_blocks,
+    'resblock_updown': diffusion_model.resblock_updown,
+    'use_checkpoint': use_checkpoint,
+    'use_fp16': fp16_mode,
+    'use_scale_shift_norm': diffusion_model.use_scale_shift_norm,
+})
 
 model_default = model_config['image_size']
 
@@ -2622,7 +2479,7 @@ estimate_vram_requirements(
     cut_innercut=cut_innercut,
     cut_overview=cut_overview,
     clip_model_names=clip_modelname,
-    diffusion_model_name=diffusion_model,
+    diffusion_model_name=diffusion_model.name,
     use_secondary=use_secondary_model,
     device=device
 )
@@ -3097,9 +2954,8 @@ if smooth_schedules == True:
 
 if cl_args.gobiginit == None:
     model, diffusion = create_model_and_diffusion(**model_config)
-    #print(f'Prepping model: {model_path}/{diffusion_model}.pt')
     model.load_state_dict(
-        torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
+        torch.load(f'{model_path}/{diffusion_model.path}', map_location='cpu'))
     model.requires_grad_(False).eval()
     for name, param in model.named_parameters():
         if 'qkv' in name or 'norm' in name or 'proj' in name:
@@ -3245,7 +3101,7 @@ try:
                                                                   
                 model, diffusion = create_model_and_diffusion(**model_config)
                 model.load_state_dict(
-                    torch.load(f'{model_path}/{diffusion_model}.pt', map_location='cpu'))
+                    torch.load(f'{model_path}/{diffusion_model.path}', map_location='cpu'))
                 model.requires_grad_(False).eval().to(device)
                 for name, param in model.named_parameters():
                     if 'qkv' in name or 'norm' in name or 'proj' in name:

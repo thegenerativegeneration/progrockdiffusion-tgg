@@ -73,7 +73,7 @@
     "keep_unsharp": false,
     "symmetry_loss_v": false,
     "symmetry_loss_h": false,
-    "symm_loss_scale":  2400,
+    "symm_loss_scale":  20000,
     "symm_switch": 45,
     "interp_spline": "Linear",
     "max_frames": 1000,

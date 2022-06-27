@@ -439,7 +439,7 @@ def is_json_key_present(json, key, subkey="none"):
 
 
 #A simple way to ensure values are in an accceptable range, and also return a random value if desired
-def clampval(minval, val, maxval):
+def clampval(var_name, minval, val, maxval):
     if val == "random":
         try:
             val = random.randint(minval, maxval)
@@ -452,10 +452,10 @@ def clampval(minval, val, maxval):
     elif type(val) == str:
         return val
     elif val < minval and not cl_args.skip_checks:
-        val = minval
+        print(f'Warning: {var_name} is below {minval} - if you get bad results, consider adjusting.')
         return val
     elif val > maxval and not cl_args.skip_checks:
-        val = maxval
+        print(f'Warning: {var_name} is above {maxval} - if you get bad results, consider adjusting.')
         return val
     else:
         return val
@@ -486,14 +486,14 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'image_prompts'):
                 image_prompts = (settings_file['image_prompts'])
             if is_json_key_present(settings_file, 'clip_guidance_scale'):
-                clip_guidance_scale = clampval(
+                clip_guidance_scale = clampval('clip_guidance_scale',
                     1500, (settings_file['clip_guidance_scale']), 100000)
             if is_json_key_present(settings_file, 'tv_scale'):
-                tv_scale = clampval(0, (settings_file['tv_scale']), 1000)
+                tv_scale = clampval('tv_scale', 0, (settings_file['tv_scale']), 1000)
             if is_json_key_present(settings_file, 'range_scale'):
-                range_scale = clampval(0, (settings_file['range_scale']), 1000)
+                range_scale = clampval('range_scale', 0, (settings_file['range_scale']), 1000)
             if is_json_key_present(settings_file, 'sat_scale'):
-                sat_scale = clampval(0, (settings_file['sat_scale']), 20000)
+                sat_scale = clampval('sat_scale', 0, (settings_file['sat_scale']), 20000)
             if is_json_key_present(settings_file, 'n_batches'):
                 n_batches = (settings_file['n_batches'])
             if is_json_key_present(settings_file, 'display_rate'):
@@ -533,15 +533,15 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'clamp_grad'):
                 clamp_grad = (settings_file['clamp_grad'])
             if is_json_key_present(settings_file, 'clamp_max'):
-                clamp_max = clampval(0.001, (settings_file['clamp_max']), 0.3)
+                clamp_max = clampval('clamp_max', 0.001, (settings_file['clamp_max']), 0.3)
             if is_json_key_present(settings_file, 'set_seed'):
                 set_seed = (settings_file['set_seed'])
             if is_json_key_present(settings_file, 'fuzzy_prompt'):
                 fuzzy_prompt = (settings_file['fuzzy_prompt'])
             if is_json_key_present(settings_file, 'rand_mag'):
-                rand_mag = clampval(0.0, (settings_file['rand_mag']), 0.999)
+                rand_mag = clampval('rand_mag', 0.0, (settings_file['rand_mag']), 0.999)
             if is_json_key_present(settings_file, 'eta'):
-                eta = clampval(0.0, (settings_file['eta']), 0.999)
+                eta = clampval('eta', 0.0, (settings_file['eta']), 0.999)
             if is_json_key_present(settings_file, 'width'):
                 width_height = [(settings_file['width']),
                                 (settings_file['height'])]
@@ -582,9 +582,9 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'cut_ic_pow'):
                 cut_ic_pow = (settings_file['cut_ic_pow'])
                 if type(cut_ic_pow) != str:
-                    cut_ic_pow = clampval(0.0, cut_ic_pow, 100)
+                    cut_ic_pow = clampval('cut_ic_pow', 0.0, cut_ic_pow, 100)
             if is_json_key_present(settings_file, 'cut_ic_pow_final'):
-                cut_ic_pow_final = clampval(0.5, (settings_file['cut_ic_pow_final']), 100)
+                cut_ic_pow_final = clampval('cut_ic_pow_final', 0.5, (settings_file['cut_ic_pow_final']), 100)
             if is_json_key_present(settings_file, 'cut_icgray_p'):
                 cut_icgray_p = (settings_file['cut_icgray_p'])
             if is_json_key_present(settings_file, 'smooth_schedules'):
@@ -676,7 +676,7 @@ for setting_arg in cl_args.settings:
             if is_json_key_present(settings_file, 'symm_loss_scale'):
                 symm_loss_scale = (settings_file['symm_loss_scale'])
             if is_json_key_present(settings_file, 'symm_switch'):
-                symm_switch = int(clampval(1, (settings_file['symm_switch']), steps))
+                symm_switch = int(clampval('symm_switch', 1, (settings_file['symm_switch']), steps))
 
     except Exception as e:
         print('Failed to open or parse ' + setting_arg +

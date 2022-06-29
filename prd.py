@@ -62,6 +62,7 @@ from helpers.vram_helpers import (
     estimate_vram_requirements,
     log_max_allocated,
 )
+from model_managers.clip_manager import ClipManager, CLIP_NAME_MAP
 
 from attr import has
 root_path = os.getcwd()
@@ -112,7 +113,6 @@ import timm
 import lpips
 from PIL import Image, ImageOps, ImageStat, ImageEnhance
 from PIL.PngImagePlugin import PngInfo
-import requests
 from glob import glob
 import json5 as json
 from types import SimpleNamespace
@@ -131,11 +131,12 @@ from resize_right import resize
 from guided_diffusion.script_util import create_model_and_diffusion, model_and_diffusion_defaults
 from datetime import datetime
 import numpy as np
-import numexpr
 import random
 import hashlib
 import urllib.request
 from os.path import exists
+
+from helpers.utils import fetch
 
 
 # Setting default values for everything, which can then be overridden by settings files.
@@ -1133,35 +1134,11 @@ def regen_perlin():
     return init.expand(batch_size, -1, -1, -1)
 
 
-def fetch(url_or_path):
-    if str(url_or_path).startswith('http://') or str(url_or_path).startswith(
-            'https://'):
-        print(f'Fetching {str(url_or_path)}. \nThis might take a while... please wait.')
-        r = requests.get(url_or_path)
-        r.raise_for_status()
-        fd = io.BytesIO()
-        fd.write(r.content)
-        fd.seek(0)
-        return fd
-    return open(url_or_path, 'rb')
-
-
 def read_image_workaround(path):
     """OpenCV reads images as BGR, Pillow saves them as RGB. Work around
     this incompatibility to avoid colour inversions."""
     im_tmp = cv2.imread(path)
     return cv2.cvtColor(im_tmp, cv2.COLOR_BGR2RGB)
-
-
-def parse_prompt(prompt, vars={}):
-    if prompt.startswith('http://') or prompt.startswith('https://'):
-        vals = prompt.rsplit(':', 2)
-        vals = [vals[0] + ':' + vals[1], *vals[2:]]
-    else:
-        vals = prompt.rsplit(':', 1)
-    vals = vals + ['', '1'][len(vals):]
-    return vals[0], float(numexpr.evaluate(vals[1], local_dict=vars))
-
 
 
 def sinc(x):
@@ -1478,11 +1455,6 @@ def do_run(batch_num, slice_num=-1):
             #torch.cuda.manual_seed_all(seed)
             #torch.backends.cudnn.deterministic = True
 
-        target_embeds, weights = [], []
-
-        if args.animation_mode == "None":
-            frame_num = batch_num
-
         if args.prompts_series is not None and frame_num >= len(
                 args.prompts_series):
             frame_prompt = args.prompts_series[-1]
@@ -1506,10 +1478,9 @@ def do_run(batch_num, slice_num=-1):
         #print(f'Frame Prompt: {frame_prompt}')
 
         prev_sample_prompt = []
-        model_stats = []
 
-        def do_weights(s):
-            nonlocal model_stats, prev_sample_prompt
+        def do_weights(s, clip_managers):
+            nonlocal prev_sample_prompt
             sample_prompt = []
 
             print_sample_prompt = False
@@ -1520,75 +1491,37 @@ def do_run(batch_num, slice_num=-1):
                 sample_prompt = frame_prompt[s].copy()
                 prev_sample_prompt = sample_prompt.copy()
 
-            #sample_prompt += additional_prompts
-
-            if (print_sample_prompt):
+            if print_sample_prompt:
                 print(f'\nPrompt for step {s}: {sample_prompt}')
 
-            model_stats = []
-            for clip_model, clip_modelname, clip_weight in clip_models:
-                cutn = 16
-                model_stat = {
-                    "clip_model": None,
-                    "target_embeds": [],
-                    "make_cutouts": None,
-                    "weights": [],
-                    "clip_model_name": None,
-                    "clip_weight": None
-                }
-                model_stat["clip_model"] = clip_model
-                model_stat["clip_model_name"] = clip_modelname # for future use, nice to know what model we're working with
-                model_stat["clip_weight"] = clip_weight
-
-                for prompt in sample_prompt:
-                    txt, weight = parse_prompt(prompt, {'s': s})
-                    #print(f'weight is type {type(weight)}{weight} at step {s}')
-                    txt = clip_model.encode_text(
-                        clip.tokenize(prompt).to(device)).float()
-                    if args.fuzzy_prompt:
-                        for i in range(25):
-                            model_stat["target_embeds"].append(
-                                (txt + torch.randn(txt.shape).to(device) *
-                                 args.rand_mag).clamp(0, 1))
-                            model_stat["weights"].append(weight)
-                    else:
-                        model_stat["target_embeds"].append(txt)
-                        model_stat["weights"].append(weight)
-
+            for clip_manager in clip_managers:
+                prompt_embeds, prompt_weights = clip_manager.embed_text_prompts(
+                    prompts=sample_prompt,
+                    step=s,
+                    fuzzy_prompt=args.fuzzy_prompt,
+                    fuzzy_prompt_rand_mag=args.rand_mag
+                )
+                # We should probably let the clip_manager manage its own state
+                # but do this for now.
+                clip_manager.prompt_weights = prompt_weights
+                clip_manager.prompt_embeds = prompt_embeds
                 if image_prompt:
-                    model_stat["make_cutouts"] = MakeCutouts(
-                        clip_model.visual.input_resolution,
-                        cutn,
-                        skip_augs=skip_augs)
-                    for prompt in image_prompt:
-                        path, weight = parse_prompt(prompt, {'s': s})
-                        img = Image.open(fetch(path)).convert('RGB')
-                        img = TF.resize(img, min(args.side_x, args.side_y, *img.size),
-                                        T.InterpolationMode.LANCZOS)
-                        batch = model_stat["make_cutouts"](TF.to_tensor(
-                            img).to(device).unsqueeze(0).mul(2).sub(1))
-                        embed = clip_model.encode_image(
-                            normalize(batch)).float()
-                        if fuzzy_prompt:
-                            for i in range(25):
-                                model_stat["target_embeds"].append(
-                                    (embed +
-                                     torch.randn(embed.shape).to(device) *
-                                     rand_mag).clamp(0, 1))
-                                weights.extend([weight / cutn] * cutn)
-                        else:
-                            model_stat["target_embeds"].append(embed)
-                            model_stat["weights"].extend([weight / cutn] *
-                                                         cutn)
-
-                model_stat["target_embeds"] = torch.cat(
-                    model_stat["target_embeds"])
-                model_stat["weights"] = torch.tensor(model_stat["weights"],
-                                                     device=device)
-                if model_stat["weights"].sum().abs() < 1e-3:
-                    raise RuntimeError('The weights must not sum to 0.')
-                model_stat["weights"] /= model_stat["weights"].sum().abs()
-                model_stats.append(model_stat)
+                    img_prompt_embeds, img_prompt_weights = clip_manager.embed_image_prompts(
+                        prompts=image_prompt,
+                        step=s,
+                        cutn=16,
+                        cut_model=MakeCutoutsDango,
+                        side_x=side_x,
+                        side_y=side_y,
+                        fuzzy_prompt=args.fuzzy_prompt,
+                        fuzzy_prompt_rand_mag=args.rand_mag,
+                        cutout_skip_augs=args.cutout_skip_augs
+                    )
+                    # We should probably let the clip_manager manage its own state
+                    # but do this for now.
+                    clip_manager.prompt_embeds = torch.cat([img_prompt_embeds, clip_manager.prompt_embeds])
+                    # Still need to re-normalize these...
+                    clip_manager.prompt_weights = torch.cat([img_prompt_weights, clip_manager.prompt_weights])
 
         initial_weights = False
 
@@ -1597,12 +1530,12 @@ def do_run(batch_num, slice_num=-1):
         if (skip_steps > 0):
             for i in range(skip_steps, 0, -1):
                 if (str(i) in frame_prompt.keys()):
-                    do_weights(i)
+                    do_weights(i, clip_managers)
                     initial_weights = True
                     break
 
         if (not initial_weights):
-            do_weights(0)
+            do_weights(0, clip_managers)
 
         init = None
         if init_image is not None:
@@ -1662,50 +1595,34 @@ def do_run(batch_num, slice_num=-1):
                     fac = diffusion.sqrt_one_minus_alphas_cumprod[cur_t]
                     x_in = out['pred_xstart'] * fac + x * (1 - fac)
                     x_in_grad = torch.zeros_like(x_in)
-                for model_stat in model_stats:
-                    t_int = int(t.item()) + 1
-                    logger.debug(f'Doing {args.cutn_batches[1000 - t_int]} batches at {t_int} diff steps.')
-                    for i in range(args.cutn_batches[1000 - t_int]):
-                        # t_int = int(t.item()) + 1  #errors on last step without +1, need to find source
-                        try:
-                            input_resolution = model_stat[
-                                "clip_model"].visual.input_resolution
-                        except:
-                            input_resolution = 224
 
-                        # Apply model weight to # of overview and innercuts to do
-                        o_cuts = int(args.cut_overview[1000 - t_int] * model_stat["clip_weight"])
-                        i_cuts = int(args.cut_innercut[1000 - t_int] * model_stat["clip_weight"])
-                        if o_cuts == 0 and i_cuts == 0:
-                            i_cuts = 1 # we have to do something otherwise we crash
-                        logger.debug(f'Doing {o_cuts} overview cuts and {i_cuts} inner for {model_stat["clip_model_name"]}')
-                        # Then do the cuts
-                        cuts = MakeCutoutsDango(
-                            input_resolution,
-                            Overview=o_cuts,
-                            InnerCrop=i_cuts,
-                            IC_Size_Pow=args.cut_ic_pow[1000 - t_int],
-                            IC_Grey_P=args.cut_icgray_p[1000 - t_int])
-                        clip_in = normalize(cuts(x_in.add(1).div(2)))
-                        image_embeds = model_stat["clip_model"].encode_image(
-                            clip_in).float()
-                        dists = spherical_dist_loss(
-                            image_embeds.unsqueeze(1),
-                            model_stat["target_embeds"].unsqueeze(0))
-                        dists = dists.view([o_cuts + i_cuts, n, -1])
-                        losses = dists.mul(
-                            model_stat["weights"]).sum(2).mean(0)
-                        loss_values.append(losses.sum().item(
-                        ))  # log loss, probably shouldn't do per cutn_batch
+                for clip_manager in clip_managers:
+                    t_int = int(t.item()) + 1
+                    for _ in range(args.cutn_batches[1000 - t_int]):
+                        clip_losses = clip_manager.get_cut_batch_losses(
+                            x_in,
+                            n,
+                            args.cut_overview,
+                            args.cut_innercut,
+                            args.cut_ic_pow,
+                            args.cut_icgray_p,
+                            t_int,
+                            MakeCutoutsDango
+                        )
+                        loss_values.append(clip_losses.sum().item())  # log loss, probably shouldn't do per cutn_batch
                         x_in_grad += torch.autograd.grad(
-                            losses.sum() * args.clip_guidance_scale[1000 - t_int],
-                            x_in)[0] / args.cutn_batches[1000 - t_int]
+                            clip_losses.sum() * args.clip_guidance_scale[1000 - t_int],
+                            x_in
+                        )[0] / args.cutn_batches[1000 - t_int]
                 tv_losses = tv_loss(x_in)
                 if use_secondary_model is True:
                     range_losses = range_loss(out)
                 else:
                     range_losses = range_loss(out['pred_xstart'])
                 sat_losses = torch.abs(x_in - x_in.clamp(min=-1, max=1)).mean()
+                logger.debug(f"tv_loss: {tv_losses.sum()}")
+                logger.debug(f"range_loss: {range_losses.sum()}")
+                logger.debug(f"sat_loss: {sat_losses.sum()}")
                 loss = tv_losses.sum() * tv_scale + range_losses.sum(
                 ) * range_scale + sat_losses.sum() * sat_scale
                 if init is not None and args.init_scale:
@@ -1924,13 +1841,12 @@ def do_run(batch_num, slice_num=-1):
                             #     torch.manual_seed(seed)
                             progressBar.write(f'Image finished. Using seed {seed + batch_num} for next image.')
 
-                image = sample['pred_xstart'][0]
-                image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
+                    do_weights(steps - cur_t - 1, clip_managers)
 
                 if (gui):
                     prdgui.update_image(image)
 
-                do_weights(steps - cur_t - 1)
+                do_weights(steps - cur_t - 1, clip_managers)
 
                 image = sample['pred_xstart'][0]
                 image = TF.to_pil_image(image.add(1).div(2).clamp(0, 1))
@@ -2458,12 +2374,17 @@ model_load_name_map = {
 }
 
 
-normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
-                        std=[0.26862954, 0.26130258, 0.27577711])
-
-lpips_model = load_lpips_model()
+clip_managers = [
+    ClipManager(
+        name=model_name,
+        cut_count_multiplier=eval(model_name),
+        device=device
+    )
+    for model_name in CLIP_NAME_MAP.keys() if eval(model_name)
+]
 
 clip_modelname = [model_name for model_name in model_load_name_map.keys() if eval(model_name) > 0.0]
+clip_model_weights = [eval(model_name) for model_name in model_load_name_map.keys() if eval(model_name) > 0.0]
 
 #Get corrected sizes
 side_x = (width_height[0] // 64) * 64
@@ -2484,6 +2405,7 @@ estimate_vram_requirements(
     device=device
 )
 
+lpips_model = load_lpips_model()
 
 if use_secondary_model:
     secondary_model = load_secondary_model()
@@ -2496,8 +2418,9 @@ clip_models = [
 ]
 print('')
 
-normalize = T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
-                        std=[0.26862954, 0.26130258, 0.27577711])
+# Load the CLIP models
+for clip_manager in clip_managers:
+    clip_manager.load()
 
 #Update Model Settings
 timestep_respacing = f'ddim{steps}'

@@ -1509,8 +1509,6 @@ def do_run(batch_num, slice_num=-1):
             if print_sample_image_prompt:
                 print(f'\nPrompt for step {s}: {sample_image_prompt}')
 
-            print(sample_image_prompt)
-
             for clip_manager in clip_managers:
                 # We should probably let the clip_manager manage its own state
                 # but do this for now.

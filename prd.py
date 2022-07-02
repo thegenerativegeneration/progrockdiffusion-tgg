@@ -1463,7 +1463,6 @@ def do_run(batch_num, slice_num=-1):
         else:
             frame_prompt = []
 
-        #print(args.image_prompts_series)
         if args.image_prompts_series is not None and frame_num >= len(
                 args.image_prompts_series):
             image_prompt = args.image_prompts_series[-1]
@@ -1475,13 +1474,18 @@ def do_run(batch_num, slice_num=-1):
         if (type(frame_prompt) is list):
             frame_prompt = {0: frame_prompt}
 
-        #print(f'Frame Prompt: {frame_prompt}')
+        if (type(image_prompt) is list):
+            image_prompt = {0: image_prompt}
 
         prev_sample_prompt = []
+        prev_sample_image_prompt = []
+
 
         def do_weights(s, clip_managers):
             nonlocal prev_sample_prompt
+            nonlocal prev_sample_image_prompt
             sample_prompt = []
+            sample_image_prompt = []
 
             print_sample_prompt = False
             if (s not in frame_prompt.keys()):
@@ -1494,20 +1498,34 @@ def do_run(batch_num, slice_num=-1):
             if print_sample_prompt:
                 print(f'\nPrompt for step {s}: {sample_prompt}')
 
+            print_sample_image_prompt = False
+            if (s not in image_prompt.keys()):
+                sample_image_prompt = prev_sample_image_prompt.copy()
+            else:
+                print_sample_image_prompt = True
+                sample_image_prompt = image_prompt[s].copy()
+                prev_sample_image_prompt = sample_image_prompt.copy()
+
+            if print_sample_image_prompt:
+                print(f'\nPrompt for step {s}: {sample_image_prompt}')
+
+            print(sample_image_prompt)
+
             for clip_manager in clip_managers:
-                prompt_embeds, prompt_weights = clip_manager.embed_text_prompts(
-                    prompts=sample_prompt,
-                    step=s,
-                    fuzzy_prompt=args.fuzzy_prompt,
-                    fuzzy_prompt_rand_mag=args.rand_mag
-                )
                 # We should probably let the clip_manager manage its own state
                 # but do this for now.
-                clip_manager.prompt_weights = prompt_weights
-                clip_manager.prompt_embeds = prompt_embeds
-                if image_prompt:
+                if sample_prompt:
+                    prompt_embeds, prompt_weights = clip_manager.embed_text_prompts(
+                        prompts=sample_prompt,
+                        step=s,
+                        fuzzy_prompt=args.fuzzy_prompt,
+                        fuzzy_prompt_rand_mag=args.rand_mag
+                    )
+                    clip_manager.prompt_embeds = prompt_embeds
+                    clip_manager.prompt_weights = prompt_weights
+                if image_prompts:
                     img_prompt_embeds, img_prompt_weights = clip_manager.embed_image_prompts(
-                        prompts=image_prompt,
+                        prompts=sample_image_prompt,
                         step=s,
                         cutn=16,
                         cut_model=MakeCutoutsDango,
@@ -1515,13 +1533,22 @@ def do_run(batch_num, slice_num=-1):
                         side_y=side_y,
                         fuzzy_prompt=args.fuzzy_prompt,
                         fuzzy_prompt_rand_mag=args.rand_mag,
-                        cutout_skip_augs=args.cutout_skip_augs
+                        cutout_skip_augs=args.skip_augs
                     )
-                    # We should probably let the clip_manager manage its own state
-                    # but do this for now.
-                    clip_manager.prompt_embeds = torch.cat([img_prompt_embeds, clip_manager.prompt_embeds])
-                    # Still need to re-normalize these...
-                    clip_manager.prompt_weights = torch.cat([img_prompt_weights, clip_manager.prompt_weights])
+                    if clip_manager.prompt_embeds is not None:
+                        clip_manager.prompt_embeds = torch.cat([img_prompt_embeds, clip_manager.prompt_embeds])
+                    else:
+                        clip_manager.prompt_embeds = img_prompt_embeds
+                    if clip_manager.prompt_weights is not None:
+                        clip_manager.prompt_weights = torch.cat([img_prompt_weights, clip_manager.prompt_weights])
+                    else:
+                        clip_manager.prompt_weights = img_prompt_weights
+                else:
+                    raise RuntimeError("No prompts provided. You must provide text_prompts and/or image_prompts.")
+
+                if clip_manager.prompt_weights.sum().abs() < 1e-3:
+                    raise RuntimeError('The weights must not sum to 0.')
+                clip_manager.prompt_weights /= clip_manager.prompt_weights.sum().abs()
 
         initial_weights = False
 
@@ -2584,17 +2611,18 @@ def get_inbetweens(key_frames, integer=False):
 def split_prompts(prompts):
     # Take the discrete prompts provided and build a frame-by-frame list of prompts that will be used
     # Fill any gaps between frame numbers with the previous prompt.
+    # (Why do we use a dict with serial integer indices instead of a list??)
     prompt_series = {}
     i = 0
     last_k = -1
     last_prompt = []
     for k, v in prompts.items():
-        if k > last_k:
-            while last_k < k:
+        if int(k) > last_k:
+            while last_k < int(k):
                 last_k += 1
                 prompt_series.update({last_k: last_prompt})
-        prompt_series.update({k: v})
-        last_k = k
+        prompt_series.update({int(k): v})
+        last_k = int(k)
         if type(v) != type(last_prompt):
             del last_prompt
         last_prompt = v

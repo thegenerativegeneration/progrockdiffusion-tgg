@@ -93,7 +93,6 @@ class ClipManager:
         prompt_weights = torch.tensor(prompt_weights, device=self.device)
         if prompt_weights.sum().abs() < 1e-3:
             raise RuntimeError('The weights must not sum to 0.')
-        prompt_weights /= prompt_weights.sum().abs()
         return prompt_embeds, prompt_weights
 
     def embed_image_prompts(
@@ -111,7 +110,6 @@ class ClipManager:
         cutouts = cut_model(
             self.model.visual.input_resolution,
             cutn,
-            skip_augs=cutout_skip_augs
         )
         prompt_embeds = []
         prompt_weights = []

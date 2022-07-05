@@ -141,8 +141,6 @@ from cut_modules.make_cutouts import MakeCutoutsDango, MakeCutouts
 
 # Setting default values for everything, which can then be overridden by settings files.
 batch_name = "Default"
-text_prompts = "No prompt in the file, by Sir Digby Chicken Caeser"
-image_prompts = {}
 clip_guidance_scale = "auto"
 tv_scale = 0
 range_scale = 150

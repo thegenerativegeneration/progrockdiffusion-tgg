@@ -115,7 +115,8 @@ class ClipManager:
             side_y,
             fuzzy_prompt=False,
             fuzzy_prompt_rand_mag=0.05,
-            cutout_skip_augs=False
+            cutout_skip_augs=False,
+            cutout_debug=False
     ):
         cutouts = cut_model(
             self.model.visual.input_resolution,
@@ -134,7 +135,7 @@ class ClipManager:
             )
             batch, _ = cutouts(
                 transforms_functional.to_tensor(img).to(self.device).unsqueeze(0).mul(2).sub(1),
-                cutout_debug=False
+                cutout_debug=cutout_debug
             )
             embed = self.model.encode_image(clip_img_normalize(batch)).float()
             if fuzzy_prompt:
@@ -162,7 +163,8 @@ class ClipManager:
         innercut_power,
         innercut_gray_prob,
         t_int,
-        cut_fn
+        cut_fn,
+        cutout_debug=False
     ):
         try:
             input_resolution = self.model.visual.input_resolution
@@ -187,7 +189,6 @@ class ClipManager:
 
         cut_input = x_in.add(1).div(2)
         cutouts, innercut_bound_list = cuts(cut_input)
-        cutout_debug = True
         if cutout_debug:
             self.draw_inner_cuts(cut_input, innercut_bound_list)
             for i, cutout in enumerate(cutouts):

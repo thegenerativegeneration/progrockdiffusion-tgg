@@ -412,6 +412,12 @@ def parse_args():
         help="Specify the log level. (default: 'INFO')"
     )
 
+    my_parser.add_argument(
+        '--cut_debug',
+        action="store_true",
+        help="Output cut debug images."
+    )
+
     return my_parser.parse_args()
 
 cl_args = parse_args()
@@ -1421,7 +1427,8 @@ def do_run(batch_num, slice_num=-1):
                             args.cut_ic_pow,
                             args.cut_icgray_p,
                             t_int,
-                            MakeCutoutsDango
+                            MakeCutoutsDango,
+                            cl_args.cut_debug
                         )
                         loss_values.append(clip_losses.sum().item())  # log loss, probably shouldn't do per cutn_batch
                         x_in_grad += torch.autograd.grad(

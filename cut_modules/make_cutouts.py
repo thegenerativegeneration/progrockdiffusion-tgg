@@ -101,7 +101,8 @@ class MakeCutouts(nn.Module):
             del cutout
 
         cutouts = torch.cat(cutouts, dim=0)
-        return cutouts
+        # For parity with MakeCutoutsDango, return an empty innercut bound list
+        return cutouts, []
 
 
 class MakeCutoutsDango(nn.Module):
@@ -162,23 +163,12 @@ class MakeCutoutsDango(nn.Module):
                               hue=0.3),
             ])
 
-    def draw_inner_cuts(self, input, rectangle_points):
-        image = TF.to_pil_image(input.clamp(0, 1).squeeze(0))
-        draw = ImageDraw.Draw(image)
-        for points in rectangle_points:
-            draw.rectangle(points)
-        image.save(
-            f"inner_cuts.jpg", quality=99
-        )
-
-    def forward(self, input, skip_augs=False, cutout_debug=False, padargs={}):
+    def forward(self, input, skip_augs=False, padargs={}):
         cutouts = []
         gray = T.Grayscale(3)
         sideY, sideX = input.shape[2:4]
         max_size = min(sideX, sideY)
         min_size = min(sideX, sideY, self.cut_size)
-        logger.debug(f"Max size: {max_size}")
-        logger.debug(f"Min size: {min_size}")
         l_size = max(sideX, sideY)
         output_shape = [1, 3, self.cut_size, self.cut_size]
         output_shape_2 = [1, 3, self.cut_size + 2, self.cut_size + 2]
@@ -212,15 +202,9 @@ class MakeCutoutsDango(nn.Module):
                     else:
                         cutouts.append(cutout)
 
-            if cutout_debug:
-                TF.to_pil_image(cutouts[0].clamp(0, 1).squeeze(0)).save(
-                    "./cutout_overview0.jpg", quality=99
-                )
-
         innercut_bound_list = []
         if self.InnerCrop > 0:
             for i in range(self.InnerCrop):
-                logger.debug(self.IC_Size_Pow)
                 size = int(
                     torch.rand([]) ** self.IC_Size_Pow * (max_size - min_size) + min_size
                 )
@@ -236,11 +220,5 @@ class MakeCutoutsDango(nn.Module):
                     cutouts.append(self.augs(cutout))
                 else:
                     cutouts.append(cutout)
-                if cutout_debug:
-                    TF.to_pil_image(cutouts[-1].clamp(0, 1).squeeze(0)).save(
-                        f"cutout_inner_{i}.jpg", quality=99
-                    )
         cutouts = torch.cat(cutouts)
         return cutouts, innercut_bound_list
-
-

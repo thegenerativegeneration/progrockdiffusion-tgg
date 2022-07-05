@@ -69,6 +69,7 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **symmetry_loss_h** | False | Set this to "True" to enable top/bottom symmetry during the render
 | **symm_loss_scale** |  20000 | helps control how closely each side should match during symmetry. Definitely play with this number to get the results you're looking for.
 | **symm_switch** | 45 | what step to stop doing symmetry mode
+| **stop_early** | 0 | stop processing your image at a certain step
 
 ## Randomizable settings
 The following settings can be set to "random" (with the quotes), which will tell the code to pick a random value within their expected boundaries:

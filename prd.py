@@ -1512,7 +1512,6 @@ def do_run(batch_num, slice_num=-1):
             for clip_manager in clip_managers:
                 # We should probably let the clip_manager manage its own state
                 # but do this for now.
-                # TODO: fixed this to stop crashing, but now if you have text and image prompts I think it will only do the text.
                 if sample_prompt:
                     prompt_embeds, prompt_weights = clip_manager.embed_text_prompts(
                         prompts=sample_prompt,
@@ -1522,7 +1521,7 @@ def do_run(batch_num, slice_num=-1):
                     )
                     clip_manager.prompt_embeds = prompt_embeds
                     clip_manager.prompt_weights = prompt_weights
-                elif image_prompts: # why image_prompts instead of sample_image_prompt?
+                if image_prompts: # why image_prompts instead of sample_image_prompt?
                     img_prompt_embeds, img_prompt_weights = clip_manager.embed_image_prompts(
                         prompts=sample_image_prompt,
                         step=s,
@@ -1542,7 +1541,7 @@ def do_run(batch_num, slice_num=-1):
                         clip_manager.prompt_weights = torch.cat([img_prompt_weights, clip_manager.prompt_weights])
                     else:
                         clip_manager.prompt_weights = img_prompt_weights
-                else:
+                if not any((sample_prompt, image_prompts)):
                     raise RuntimeError("No prompts provided. You must provide text_prompts and/or image_prompts.")
 
                 if clip_manager.prompt_weights.sum().abs() < 1e-3:

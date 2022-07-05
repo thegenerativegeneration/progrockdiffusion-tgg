@@ -3,7 +3,7 @@ import logging
 import numexpr
 import torch
 import clip
-from PIL import Image
+from PIL import Image, ImageDraw
 from torchvision import transforms
 from torchvision.transforms import functional as transforms_functional
 from torch.nn import functional as F
@@ -65,6 +65,16 @@ class ClipManager:
                 device=self.device
             )[0].eval().requires_grad_(False)
 
+    def draw_inner_cuts(self, input, rectangle_points):
+        image = transforms_functional.to_pil_image(input.clamp(0, 1).squeeze(0))
+        draw = ImageDraw.Draw(image)
+        for points in rectangle_points:
+            logger.debug(f"{self.name} cut dimensions: {points[3] - points[1]} x {points[2] - points[0]}")
+            draw.rectangle(points)
+        image.save(
+            f"inner_{self.name}_cuts.jpg", quality=99
+        )
+
     def embed_text_prompts(
         self,
         prompts,
@@ -110,6 +120,7 @@ class ClipManager:
         cutouts = cut_model(
             self.model.visual.input_resolution,
             cutn,
+
         )
         prompt_embeds = []
         prompt_weights = []
@@ -121,7 +132,10 @@ class ClipManager:
                 min(side_x, side_y, *img.size),
                 transforms.InterpolationMode.LANCZOS
             )
-            batch = cutouts(transforms_functional.to_tensor(img).to(self.device).unsqueeze(0).mul(2).sub(1))
+            batch, _ = cutouts(
+                transforms_functional.to_tensor(img).to(self.device).unsqueeze(0).mul(2).sub(1),
+                cutout_debug=False
+            )
             embed = self.model.encode_image(clip_img_normalize(batch)).float()
             if fuzzy_prompt:
                 for i in range(25):
@@ -168,9 +182,21 @@ class ClipManager:
             Overview=o_cuts,
             InnerCrop=i_cuts,
             IC_Size_Pow=innercut_power[1000 - t_int],
-            IC_Grey_P=innercut_gray_prob[1000 - t_int])
+            IC_Grey_P=innercut_gray_prob[1000 - t_int]
+        )
 
-        clip_in = clip_img_normalize(cuts(x_in.add(1).div(2)))
+        cut_input = x_in.add(1).div(2)
+        cutouts, innercut_bound_list = cuts(cut_input)
+        cutout_debug = True
+        if cutout_debug:
+            self.draw_inner_cuts(cut_input, innercut_bound_list)
+            for i, cutout in enumerate(cutouts):
+                transforms_functional.to_pil_image(cutout.clamp(0, 1).squeeze(0)).save(
+                    f"cutout_{self.name}_{i}.jpg", quality=99
+                )
+        clip_in = clip_img_normalize(
+            cutouts
+        )
         image_embeds = self.model.encode_image(clip_in).float()
         dists = spherical_dist_loss(
             image_embeds.unsqueeze(1),

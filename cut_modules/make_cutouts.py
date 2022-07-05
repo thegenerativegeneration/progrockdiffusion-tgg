@@ -1,5 +1,6 @@
 import math
 import random
+import logging
 
 import torch
 from resize_right import resize
@@ -7,6 +8,10 @@ from torch import nn
 import torchvision.transforms as T
 from torch.nn import functional as F
 import torchvision.transforms.functional as TF
+from PIL import ImageDraw
+
+
+logger = logging.getLogger(__name__)
 
 
 def sinc(x):
@@ -106,7 +111,7 @@ class MakeCutoutsDango(nn.Module):
                  InnerCrop=0,
                  IC_Size_Pow=0.5,
                  IC_Grey_P=0.2,
-                 animation_mode = 'None'
+                 animation_mode='None'
     ):
         super().__init__()
         self.cut_size = cut_size
@@ -157,12 +162,23 @@ class MakeCutoutsDango(nn.Module):
                               hue=0.3),
             ])
 
+    def draw_inner_cuts(self, input, rectangle_points):
+        image = TF.to_pil_image(input.clamp(0, 1).squeeze(0))
+        draw = ImageDraw.Draw(image)
+        for points in rectangle_points:
+            draw.rectangle(points)
+        image.save(
+            f"inner_cuts.jpg", quality=99
+        )
+
     def forward(self, input, skip_augs=False, cutout_debug=False, padargs={}):
         cutouts = []
         gray = T.Grayscale(3)
         sideY, sideX = input.shape[2:4]
         max_size = min(sideX, sideY)
         min_size = min(sideX, sideY, self.cut_size)
+        logger.debug(f"Max size: {max_size}")
+        logger.debug(f"Min size: {min_size}")
         l_size = max(sideX, sideY)
         output_shape = [1, 3, self.cut_size, self.cut_size]
         output_shape_2 = [1, 3, self.cut_size + 2, self.cut_size + 2]
@@ -177,7 +193,7 @@ class MakeCutoutsDango(nn.Module):
         if self.Overview > 0:
             if self.Overview <= 4:
                 li = [1, 1, 2, 3, 4] # give a slight edge to the normal, full color cut
-                ri = random.sample(li,self.Overview)
+                ri = random.sample(li, self.Overview)
                 ri.sort()
                 for i in range(self.Overview):
                     if ri[i] == 1:
@@ -191,30 +207,40 @@ class MakeCutoutsDango(nn.Module):
             else:
                 cutout = resize(pad_input, out_shape=output_shape)
                 for _ in range(self.Overview):
-                    cutouts.append(cutout)
+                    if not skip_augs:
+                        cutouts.append(self.augs(cutout))
+                    else:
+                        cutouts.append(cutout)
 
             if cutout_debug:
                 TF.to_pil_image(cutouts[0].clamp(0, 1).squeeze(0)).save(
-                    "content/cutout_overview0.jpg", quality=99)
+                    "./cutout_overview0.jpg", quality=99
+                )
 
+        innercut_bound_list = []
         if self.InnerCrop > 0:
             for i in range(self.InnerCrop):
+                logger.debug(self.IC_Size_Pow)
                 size = int(
-                    torch.rand([])**self.IC_Size_Pow * (max_size - min_size) +
-                    min_size)
+                    torch.rand([]) ** self.IC_Size_Pow * (max_size - min_size) + min_size
+                )
                 offsetx = torch.randint(0, sideX - size + 1, ())
                 offsety = torch.randint(0, sideY - size + 1, ())
+                innercut_bound_list.append((offsetx, offsety, offsetx + size, offsety + size))
                 cutout = input[:, :, offsety:offsety + size,
                          offsetx:offsetx + size]
                 if i <= int(self.IC_Grey_P * self.InnerCrop):
                     cutout = gray(cutout)
                 cutout = resize(cutout, out_shape=output_shape)
-                cutouts.append(cutout)
-            if cutout_debug:
-                TF.to_pil_image(cutouts[-1].clamp(0, 1).squeeze(0)).save(
-                    "content/cutout_InnerCrop.jpg", quality=99)
+                if not skip_augs:
+                    cutouts.append(self.augs(cutout))
+                else:
+                    cutouts.append(cutout)
+                if cutout_debug:
+                    TF.to_pil_image(cutouts[-1].clamp(0, 1).squeeze(0)).save(
+                        f"cutout_inner_{i}.jpg", quality=99
+                    )
         cutouts = torch.cat(cutouts)
-        if skip_augs is not True: cutouts = self.augs(cutouts)
-        return cutouts
+        return cutouts, innercut_bound_list
 
 

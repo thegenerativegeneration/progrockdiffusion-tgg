@@ -2012,7 +2012,8 @@ if diffusion_model == 'random':
         '512x512_diffusion_uncond_finetune_008100',
         '256x256_openai_comics_faces_by_alex_spirin_084000',
         'pixel_art_diffusion_hard_256',
-        'pixel_art_diffusion_soft_256']
+        'pixel_art_diffusion_soft_256',
+        'ukiyoe_diffusion_256']
     diffusion_model = random.choice(the_models)
     print(f'Random model selected is {diffusion_model}')
 

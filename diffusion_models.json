@@ -83,5 +83,22 @@
         "num_res_blocks": 2,
         "resblock_updown": false,
         "use_scale_shift_norm": false
+    },
+    "ukiyoe_diffusion_256": {
+        "SHA": "b0b9626fbc6c43ea7eb074134612381a794c5407abb4debc8ba6ccb37386e769",
+        "primary_link": "https://huggingface.co/thegenerativegeneration/ukiyoe-diffusion-256/resolve/main/ukiyoe_diffusion_256.pt",
+        "secondary_link": "none",
+        "file_name": "ukiyoe_diffusion_256.pt",
+        "attention_resolutions": "16",
+        "class_cond": false,
+        "rescale_timesteps": true,
+        "image_size": 256,
+        "learn_sigma": true,
+        "noise_schedule": "linear",
+        "num_channels": 128,
+        "num_head_channels": 1,
+        "num_res_blocks": 2,
+        "resblock_updown": false,
+        "use_scale_shift_norm": false
     }
 }

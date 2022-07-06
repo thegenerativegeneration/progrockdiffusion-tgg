@@ -913,6 +913,35 @@ def randomizer(category):
     random_item = random.choice(randomizers)
     return(random_item)
 
+# Dynamic value - takes ready-made possible options within a string and returns the string with an option randomly selected
+# Format is "I will return <Value1|Value2|Value3> in this string"
+# Which would come back as "I will return Value2 in this string" (for example)
+# Optionally if a value of ^^# is first, it means to return that many dynamic values,
+# so <^^2|Value1|Value2|Value3> in the above example would become:
+# "I will return Value3 Value2 in this string"
+# note: for now assumes a string for return. TODO return a desired type
+
+def dynamic_value(text):
+    logger.debug(f'Original value: {text}')
+    while "<" in text:
+        start = text.index('<')
+        end = text.index('>')
+        swap = text[(start + 1):end]
+        value = ""
+        count = 1
+        values = swap.split('|')
+        if "^^" in values[0]:
+            count = values[0]
+            values.pop(0)
+            count = int(count[2:])
+        random.shuffle(values)
+        for i in range(count):
+            value = value + values[i] + " "
+        value = value[:-1] # remove final space
+        text = text.replace(f'<{swap}>', value)
+    logger.debug(f'Dynamic value: {text}')
+    return text
+
 def randomize_prompts(prompts):
     # take a list of prompts and handle any _random_ elements
     newprompts = []
@@ -925,6 +954,8 @@ def randomize_prompts(prompts):
                 swapped = randomizer(swap)
                 prompt = prompt.replace(f'_{swap}_', swapped, 1)
             newprompt = prompt
+        elif "<" in prompt:
+            newprompt = dynamic_value(prompt)
         else:
             newprompt = prompt
         newprompts.append(newprompt)
@@ -953,6 +984,8 @@ print('\nPrompt(s) with randomizers:')
 for k, v in text_prompts.items():
     print(f'  {k}: {v}')
 print('\n')
+
+
 # INIT IMAGE RANDOMIZER
 # If the setting for init_image is a word between two underscores, we'll pull a random image from that directory,
 # and set our size accordingly.
@@ -1247,6 +1280,10 @@ def do_run(batch_num, slice_num=-1):
             #torch.use_deterministic_algorithms(True, warn_only=True)
             #torch.cuda.manual_seed_all(seed)
             #torch.backends.cudnn.deterministic = True
+        
+        # Use next prompt in series when doing a batch run
+        if animation_mode == "None":
+            frame_num = batch_num
 
         if args.prompts_series is not None and frame_num >= len(
                 args.prompts_series):

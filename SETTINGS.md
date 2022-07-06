@@ -5,7 +5,7 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | *Setting name* | *Default in settings.json* | *Explanation*
 | -------------------------|------------------------|:---
 | **batch_name** | "Default" | The directory within images_out to store your results
-| **text_prompts** | "The Big Sur Coast, by Asher Brown Durand, featured on ArtStation." | The phrase(s) to use for generating an image
+| **text_prompts** | "The Big Sur Coast, by Asher Brown Durand, featured on ArtStation." | The phrase(s) to use for generating an image. More details below
 | **n_batches** | 1 | How many images to generate
 | **steps** | 250 | Generally, the more steps you run, the more detailed the results, however the returns start to diminish after 350
 | **display_rate** | 50 | How often (in steps) to update the progress.png image
@@ -70,6 +70,79 @@ Note that a few of the settings can be randomly chosen -- see the section below 
 | **symm_loss_scale** |  20000 | helps control how closely each side should match during symmetry. Definitely play with this number to get the results you're looking for.
 | **symm_switch** | 45 | what step to stop doing symmetry mode
 | **stop_early** | 0 | stop processing your image at a certain step
+
+## Text Prompts
+There are a handful of techniques available within Text Prompts. Here are a few examples:
+
+### Multiple prompts for a single image
+Dividing prompts up into separate prompts can sometimes help with image quality.
+```
+    "text_prompts": {
+        "0": [
+            "A castle in the Scottish Highlands, by Beeple", "sunset, autumn leaves"
+        ],
+    },
+```
+
+### Weights
+You can add a weight to the end of any prompt to tell the system how important that prompt is compared to the others. Negatives are supported, too.
+Please note the total weight must not be zero.
+```
+    "text_prompts": {
+        "0": [
+            "A castle in the Scottish Highlands, by Beeple:2", "sunset, autumn leaves:-1"
+        ],
+    },
+```
+
+### A prompt series, for use with n_batches
+This setting will use the first prompt for the first image in a batch, and the second prompt for the second image, etc.
+```
+    "text_prompts": {
+        "0": [
+            "A castle in the Scottish Highlands, by Beeple:2", "sunset, autumn leaves:-1"
+        ],
+        "1": [
+            "An inn in the Scottish Lowlands, by RHADS"
+        ],
+    },
+```
+If you do a batch with only one prompt, PRD will use that prompt for all images.
+You can also set the next image to, say, "10" and PRD would start using that prompt at the tenth image of the batch.
+
+### Randomization
+Prompts can be randomized in two ways. First, if you surround a word with the _ character, and there is a matching text file in the settings folder, a random line from that text file will replace the surrounded word.
+For example:
+```
+    "text_prompts": {
+        "0": [
+            "A castle in the Scottish Highlands, by _artist_"
+        ],
+    },
+```
+This would look for artist.txt, randomly select a line from that file, and replace ```_artist_``` with it. This can be done as many times as you want within a prompt, and you can add whatever text files you wish to the settings folder. Subjects, adjectives, artstyle, and so on. Some of these are provided, but feel free to create your own!
+
+Prompts can also be randomized directly for quicker experimentation. This is done by adding a set of dynamic options within the prompt.
+Example:
+```
+    "text_prompts": {
+        "0": [
+            "A <castle|home|fort|inn> in the Scottish Highlands, by _artist_"
+        ],
+    },
+```
+This would select one of the words between the <> characters, and discard the rest. 
+Note: This is not done for every image in a batch. If you want multiple randomizations, you would need to run prd multiple times, or use the prompt series above.
+
+One additional trick for directly randomized prompts is selecting how many words you want back. By default it's one, but you can ask for more this way:
+```
+    "text_prompts": {
+        "0": [
+            "A castle in the Scottish Highlands, by <^^2|sparth|RHADS|Beeple|Asher Brown Durand>"
+        ],
+    },
+```
+In this case, ^^2 means two artists would be selected from the four options.
 
 ## Randomizable settings
 The following settings can be set to "random" (with the quotes), which will tell the code to pick a random value within their expected boundaries:

@@ -134,8 +134,7 @@ class ClipManager:
                 transforms.InterpolationMode.LANCZOS
             )
             batch, _ = cutouts(
-                transforms_functional.to_tensor(img).to(self.device).unsqueeze(0).mul(2).sub(1),
-                cutout_debug=cutout_debug
+                transforms_functional.to_tensor(img).to(self.device).unsqueeze(0).mul(2).sub(1)
             )
             embed = self.model.encode_image(clip_img_normalize(batch)).float()
             if fuzzy_prompt:
